@@ -2,15 +2,11 @@
 name = "trame-dataclass"
 version = "1.0.0"
 description = "Dataclass for trame UI binding"
-authors = [
-    {name = "Kitware Inc."},
-]
-dependencies = [
-    "trame_client>=3.10",
-]
+authors = [{ name = "Kitware Inc." }]
+dependencies = ["trame_client>=3.10"]
 requires-python = ">=3.9"
 readme = "README.rst"
-license = {text = "Apache Software License"}
+license = { text = "Apache Software License" }
 keywords = ["Python", "Interactive", "Web", "Application", "Framework"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -24,16 +20,13 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-app = [
-    "pywebview",
-]
-jupyter = [
-    "jupyterlab",
-]
+app = ["pywebview"]
+jupyter = ["jupyterlab"]
 dev = [
     "pre-commit",
     "ruff",
     "pytest >=6",
+    "pytest-asyncio",
     "pytest-cov >=3",
     "nox",
 ]
@@ -45,17 +38,14 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 include = [
-  "/src/trame/**/*.py",
-  "/src/trame_dataclass/**/*.py",
-  "/src/trame_dataclass/**/*.js",
-  "/src/trame_dataclass/**/*.css",
+    "/src/trame/**/*.py",
+    "/src/trame_dataclass/**/*.py",
+    "/src/trame_dataclass/**/*.js",
+    "/src/trame_dataclass/**/*.css",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = [
-    "src/trame",
-    "src/trame_dataclass",
-]
+packages = ["src/trame", "src/trame_dataclass"]
 
 [tool.ruff]
 
@@ -84,9 +74,11 @@ extend-select = [
     "YTT", # flake8-2020
 ]
 ignore = [
+    "T201",    # tmp during dev
     "PLR09",   # Too many <...>
     "PLR2004", # Magic value used in comparison
     "ISC001",  # Conflicts with formatter
+    "SIM117",  # nested with for UI in examples
 ]
 isort.required-imports = []
 
@@ -95,11 +87,7 @@ isort.required-imports = []
 "noxfile.py" = ["T20"]
 "src/**" = ["SIM117"]
 [tool.semantic_release]
-version_toml = [
-    "pyproject.toml:project.version",
-]
-version_variables = [
-    "src/trame_dataclass/__init__.py:__version__",
-]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = ["src/trame_dataclass/__init__.py:__version__"]
 
 build_command = "uv build"

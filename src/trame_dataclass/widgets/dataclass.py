@@ -17,9 +17,10 @@ __all__ = [
 
 # Expose your vue component(s)
 class Provider(HtmlElement):
-    def __init__(self, **kwargs):
+    def __init__(self, name, **kwargs):
         super().__init__(
             "trame-dataclass",
             **kwargs,
         )
-        self._attr_names += ["name", "instance"]
+        self._attr_names += ["instance"]
+        self._attributes["slot"] = f'v-slot="{{ dataclass: {name} }}"'

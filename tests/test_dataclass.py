@@ -1,7 +1,9 @@
+import asyncio
 from contextlib import suppress
 from pathlib import Path
 
 import pytest
+from trame_server.core import Server
 
 from trame_dataclass.core import (
     NonSerializableType,
@@ -52,6 +54,140 @@ def test_complex_type():
         pytest.fail("Should trigger a NonSerializableType exception")
 
 
-if __name__ == "__main__":
-    test_json_friendly_data()
-    test_complex_type()
+def test_watch():
+    server = Server()
+    watch_exec_count = 0
+    watch_count_expect = None
+
+    @trame_dataclass
+    class TestWatch:
+        count: int = 1
+        a: str | None
+        b: str | None = "b"
+
+    data = TestWatch(server)
+
+    # initial value
+    assert data.count == 1
+    assert data.a is None
+    assert data.b == "b"
+
+    # watch callback
+    def watch_callback(count):
+        nonlocal watch_exec_count
+        watch_exec_count += 1
+        print("watch_callback", watch_exec_count)
+        assert watch_count_expect == count, (
+            "callback execution (expect, actual exec count)"
+        )
+
+    # test eager
+    print("test eager")
+    watch_count_expect = 1
+    unwatch = data.watch(("count",), watch_callback, sync=True, eager=True)
+    assert watch_exec_count == 1
+
+    # test sync
+    print("test sync")
+    watch_count_expect = 2
+    data.count += 1
+    assert watch_exec_count == 2
+
+    # test other field modification
+    print("test other field", watch_exec_count)
+    data.a = "a"
+    print(f"{watch_exec_count=}")
+    assert watch_exec_count == 2
+    print("test watch again")
+    watch_count_expect = 3
+    data.count += 1
+    assert watch_exec_count == 3
+    watch_count_expect = 4
+    data.count += 1
+    assert watch_exec_count == 4
+
+    # test unwatch
+    print("test unwatch")
+    unwatch()
+    data.count += 1
+    assert watch_exec_count == 4
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "wait_time",
+    [
+        pytest.param(
+            0,
+            marks=pytest.mark.xfail(
+                strict=True, reason="Need to allow time for watch task execution"
+            ),
+            id="known_issue_for_async_exec",
+        ),
+        0.0001,
+    ],
+)
+async def test_async_watch(wait_time):
+    server = Server()
+    watch_exec_count = 0
+    watch_count_expect = None
+
+    @trame_dataclass
+    class TestWatch:
+        count: int = 1
+        a: str | None
+        b: str | None = "b"
+
+    data = TestWatch(server)
+
+    # initial value
+    assert data.count == 1
+    assert data.a is None
+    assert data.b == "b"
+
+    # ensure completed initialization
+    await asyncio.sleep(0.01)
+
+    # watch callback (make it async to ensure support)
+    async def watch_callback(count):
+        nonlocal watch_exec_count
+        watch_exec_count += 1
+        print("exec: watch_callback", count, watch_exec_count)
+        assert watch_count_expect == count, "callback execution"
+
+    # test eager
+    print("test eager")
+    watch_count_expect = 0
+    unwatch = data.watch(("count",), watch_callback)
+    assert watch_exec_count == 0, "Eager watch execution"
+    await asyncio.sleep(wait_time)
+    assert watch_exec_count == 0, "async First state on watch"
+
+    # test edit
+    print("test edit")
+    watch_count_expect = 1
+    data.count += 1
+    await asyncio.sleep(wait_time)
+    assert watch_exec_count == 1, "watch execution"
+
+    # test other field modification
+    print("test other field")
+    data.a = "a"
+    await asyncio.sleep(wait_time)
+    assert watch_exec_count == 1, "no watch execution"
+    print("test watch again")
+    watch_count_expect = 2
+    data.count += 1
+    await asyncio.sleep(wait_time)
+    assert watch_exec_count == 2, "change watch execution"
+    watch_count_expect = 3
+    data.count += 1
+    await asyncio.sleep(wait_time)
+    assert watch_exec_count == 3, "another change watch execution"
+
+    # test unwatch
+    print("test unwatch")
+    unwatch()
+    data.count += 1
+    await asyncio.sleep(wait_time)
+    assert watch_exec_count == 3, "No more watch"

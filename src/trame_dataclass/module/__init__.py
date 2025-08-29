@@ -16,10 +16,14 @@ if (Path(serve_path) / "style.css").exists():
 # List of Vue plugins to install/load
 vue_use = ["trame_dataclass"]
 
-# Uncomment to add entries to the shared state
-# state = {}
-
 
 # Optional if you want to execute custom initialization at module load
-def setup(app, **kwargs):
+def setup(server, **_):
     """Method called at initialization with possibly some custom keyword arguments"""
+    server.add_protocol_to_configure(configure_protocol)
+
+
+def configure_protocol(protocol):
+    from trame_dataclass.module.protocol import TrameDataclassProtocol
+
+    protocol.registerLinkProtocol(TrameDataclassProtocol())

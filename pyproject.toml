@@ -86,8 +86,8 @@ isort.required-imports = []
 "tests/**" = ["T20"]
 "noxfile.py" = ["T20"]
 "src/**" = ["SIM117"]
+
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 version_variables = ["src/trame_dataclass/__init__.py:__version__"]
-
-build_command = "uv build"
+build_command = "pip install uv && uv build"

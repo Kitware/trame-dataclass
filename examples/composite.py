@@ -31,13 +31,13 @@ class GettingStarted(TrameApp):
         self._book.watch(("active",), self.on_active)
         self._book.watch(("contacts",), self.on_contacts_change)
 
-    def on_active(self, user):
+    def on_active(self, user: User | None):
         print("-" * 60)
         print("!!! active user !!!")
         print(user)
         print("-" * 60)
 
-    def on_contacts_change(self, contacts):
+    def on_contacts_change(self, contacts: list[User] | None):
         print("contacts:", [v._id for v in contacts])
 
     def remove_active(self):

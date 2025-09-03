@@ -41,7 +41,7 @@ class CustomEncoder(TrameApp):
         self._data.watch(["path"], self._list_children, eager=True)
         self._build_ui()
 
-    def _list_children(self, file_path):
+    def _list_children(self, file_path: Path):
         if file_path.exists():
             self._data.children = file_path.glob("*")
         else:

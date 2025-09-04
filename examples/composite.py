@@ -37,6 +37,9 @@ class GettingStarted(TrameApp):
         print(user)
         print("-" * 60)
 
+        with self.state:
+            self.state.active_id = None if user is None else user._id
+
     def on_contacts_change(self, contacts: list[User] | None):
         print("contacts:", [v._id for v in contacts])
 
@@ -79,6 +82,22 @@ class GettingStarted(TrameApp):
                             "delete",
                             click="book.contacts = book.contacts.filter(v => v !== user)",
                         )
+            html.Hr()
+            html.Div("Edit active [{{ active_id }}]")
+            with self._book.Provider(name="active", instance=("active_id", None)):
+                with html.Template(v_if="active_available"):
+                    html.Span("First name:")
+                    html.Input(type="text", v_model="active.first_name")
+                    html.Span("Last name:")
+                    html.Input(type="text", v_model="active.last_name")
+                    html.Span("Age:")
+                    html.Input(
+                        type="range",
+                        min=0,
+                        max=120,
+                        step=1,
+                        v_model_number="active.age",
+                    )
 
 
 def main():

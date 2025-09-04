@@ -23,4 +23,6 @@ class Provider(HtmlElement):
             **kwargs,
         )
         self._attr_names += ["instance"]
-        self._attributes["slot"] = f'v-slot="{{ dataclass: {name} }}"'
+        self._attributes["slot"] = (
+            f'v-slot="{{ dataclass: {name}, dataclassAvailable: {name}_available }}"'
+        )

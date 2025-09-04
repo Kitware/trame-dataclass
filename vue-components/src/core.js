@@ -35,8 +35,12 @@ export class DataclassManager {
       .getSession()
       .subscribe("trame.dataclass.publish", async ([event]) => {
         const { id, state } = event;
-        Object.assign(this.dataStates[id].server, state);
+        if (!this.dataStates[id]) {
+          await this.fetchState(id);
+          return;
+        }
 
+        Object.assign(this.dataStates[id].server, state);
         for (const [key, value] of Object.entries(state)) {
           if (this.isDataClass(id, key)) {
             await this.handleNestedDataClass(id, key, value);

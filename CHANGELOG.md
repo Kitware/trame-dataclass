@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.0.2 (2025-09-04)
+
+### Bug Fixes
+
+- **js**: Handle update before object available
+  ([`1a6e6c9`](https://github.com/Kitware/trame-dataclass/commit/1a6e6c9fbff9bc5dac99abb271fef2ff75a25357))
+
+
 ## v1.0.1 (2025-09-04)
 
 ### Bug Fixes

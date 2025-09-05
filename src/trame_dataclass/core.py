@@ -441,7 +441,7 @@ def _type_compatibility(annotation_type):
     if isinstance(annotation_type, types.UnionType):
         return all(map(_type_compatibility, annotation_type.__args__))
 
-    if is_trame_dataclass(annotation_type):
+    if _type_is_dataclass(annotation_type):
         return True
 
     if annotation_type in _COMPOSITE_TYPES:
@@ -475,12 +475,16 @@ def _type_can_be_none(annotation_type):
 
 
 def _type_is_dataclass(annotation_type):
+    # FIXME needed for now due to circular dependencies TreeNode(children: list['TreeNode'])
+    if isinstance(annotation_type, str):
+        return True
+
     if is_trame_dataclass(annotation_type):
         return True
 
     if isinstance(annotation_type, types.UnionType):
         for t in annotation_type.__args__:
-            if is_trame_dataclass(t):
+            if _type_is_dataclass(t):
                 return True
 
     return False
@@ -531,20 +535,22 @@ def _type_default(annotation_type):
 
 
 def _process_class(cls):
+    # print(cls)
+    # print(get_type_hints(cls))
     cls_annotations = cls.__dict__.get("__annotations__", {})
     cls_fields = []
-    for name, type in cls_annotations.items():
+    for name, a_type in cls_annotations.items():
         initial_value = cls.__dict__.get(name, None)
         if initial_value is not None and isinstance(initial_value, Field):
-            initial_value.setup_annotation(name, type)
+            initial_value.setup_annotation(name, a_type)
             cls_fields.append(initial_value)
         else:
-            if not _type_compatibility(type):
-                msg = f"{type} is not supported"
+            if not _type_compatibility(a_type):
+                msg = f"{a_type} is not supported"
                 raise NonSerializableType(msg)
 
             field = Field(default=initial_value)
-            field.setup_annotation(name, type)
+            field.setup_annotation(name, a_type)
             cls_fields.append(field)
 
     # add class metadata
@@ -595,20 +601,28 @@ def decode_dataclass_item(item):
 
 
 def encode_dataclass_list(items):
+    if items is None:
+        return None
     return [item._id for item in items]
 
 
 def decode_dataclass_list(items):
     # print("decode_dataclass_list", items)
+    if items is None:
+        return None
     return list(map(get_instance, items))
 
 
 def encode_dataclass_dict(data):
+    if data is None:
+        return None
     return {k: v._id for k, v in data.items()}
 
 
 def decode_dataclass_dict(data):
     # print("decode_dataclass_dict", data)
+    if data is None:
+        return None
     return {k: get_instance(v) for k, v in data.items()}
 
 
@@ -706,16 +720,11 @@ class Field:
         self.decoder = decoder
         self.dataclass_container = False
 
-    def setup_annotation(self, name, type_annotation):
-        self.name = name
-        self.type_annotation = type_annotation
-        if self.default is None:
-            self.default = _type_default(type_annotation)
-
+    def update_encoder(self, type_annotation):
         if _type_is_composite(type_annotation):
             if hasattr(type_annotation, "__origin__"):
                 # properly typed
-                if type_annotation.__origin__ is list and is_trame_dataclass(
+                if type_annotation.__origin__ is list and _type_is_dataclass(
                     type_annotation.__args__[0]
                 ):
                     # print("Use custom list[dataclass] encoder/decoder")
@@ -725,7 +734,7 @@ class Field:
                     self.encoder = encode_dataclass_list
                     self.decoder = decode_dataclass_list
                     self.dataclass_container = True
-                elif type_annotation.__origin__ is dict and is_trame_dataclass(
+                elif type_annotation.__origin__ is dict and _type_is_dataclass(
                     type_annotation.__args__[1]
                 ):
                     assert type_annotation.__args__[0] is str, (
@@ -745,6 +754,18 @@ class Field:
             self.encoder = encode_dataclass_item
             self.decoder = decode_dataclass_item
             self.dataclass_container = True
+
+    def setup_annotation(self, name, type_annotation):
+        self.name = name
+        self.type_annotation = type_annotation
+        if self.default is None:
+            self.default = _type_default(type_annotation)
+
+        if isinstance(type_annotation, types.UnionType):
+            for t in type_annotation.__args__:
+                self.update_encoder(t)
+        else:
+            self.update_encoder(type_annotation)
 
     def setup_class(self, cls):
         """Patch class with methods to add"""

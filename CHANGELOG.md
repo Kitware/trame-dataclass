@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.0.4 (2025-09-05)
+
+### Bug Fixes
+
+- **decorator**: Add @watch method decoration
+  ([`f6c255f`](https://github.com/Kitware/trame-dataclass/commit/f6c255f600c48fd131848ce54736f7105252fcfe))
+
+
 ## v1.0.3 (2025-09-05)
 
 ### Bug Fixes

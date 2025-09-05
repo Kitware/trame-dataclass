@@ -155,6 +155,10 @@ def check_loop_status():
         return False
 
 
+def can_be_decorated(x):
+    return inspect.ismethod(x) or inspect.isfunction(x)
+
+
 # -----------------------------------------------------------------------------
 # Method to add to trame_dataclass
 # -----------------------------------------------------------------------------
@@ -176,6 +180,7 @@ def _create_methods(fields, server, client, sync, valid_keys):
         self._next_watcher_id = 1
         self._pending_task = None
         self._flush_impl = None
+        self._subscriptions = []
 
         if server:
             self._server_state = {}
@@ -199,6 +204,15 @@ def _create_methods(fields, server, client, sync, valid_keys):
             else:
                 # wait for server to be ready
                 self.server.controller.on_server_ready.add(self._register_server)
+
+        # check decorated methods
+        for k in inspect.getmembers(self.__class__, can_be_decorated):
+            fn = getattr(self, k[0])
+
+            # Handle @watch
+            if "_watch" in fn.__dict__:
+                field_names = tuple(fn.__dict__["_watch"])
+                self._subscriptions.append(self.watch(field_names, fn))
 
     def _register_server(self, **_):
         self.server.protocol_call("trame.dataclass.register", self)
@@ -635,6 +649,7 @@ __all__ = [
     "get_instance",
     "is_trame_dataclass",
     "trame_dataclass",
+    "watch",
 ]
 
 
@@ -794,3 +809,18 @@ class Field:
             setattr(obj, self.name, value)
         elif self.mode.has_client_state:
             obj._client_state[self.name] = value
+
+
+# -----------------------------------------------------------------------------
+
+
+def watch(*args):
+    """Method decorator to watch state change"""
+
+    def decorate(f):
+        if not hasattr(f, "_watch"):
+            f._watch = []
+        f._watch.extend(args)
+        return f
+
+    return decorate

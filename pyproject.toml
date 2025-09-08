@@ -29,6 +29,7 @@ dev = [
     "pytest-asyncio",
     "pytest-cov >=3",
     "nox",
+    "trame",
 ]
 
 [build-system]

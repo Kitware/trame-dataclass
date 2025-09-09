@@ -7,26 +7,22 @@ from trame_server.core import Server
 
 from trame_dataclass.core import (
     NonSerializableType,
-    is_trame_dataclass,
-    trame_dataclass,
+    TrameStateDataModel,
 )
 
 
 def test_json_friendly_data():
-    @trame_dataclass
-    class Basic:
+    class Basic(TrameStateDataModel):
         id: str
         name: str | None
         age: int = 42
         account_balance: float
         alive: bool
 
-    @trame_dataclass
-    class Complex:
+    class Complex(TrameStateDataModel):
         basic: Basic
 
-    @trame_dataclass
-    class Composite:
+    class Composite(TrameStateDataModel):
         array: list
         numbers: list[int]
         objs: list[Basic]
@@ -39,16 +35,15 @@ def test_json_friendly_data():
     # obj_1.flush() # can only be done with a server
     print(obj_1)
     print(obj_2)
-    assert is_trame_dataclass(Basic)
-    assert is_trame_dataclass(obj_1)
-    assert is_trame_dataclass(obj_2)
+    assert issubclass(Basic, TrameStateDataModel)
+    assert isinstance(obj_1, TrameStateDataModel)
+    assert isinstance(obj_2, TrameStateDataModel)
 
 
 def test_complex_type():
     with suppress(NonSerializableType):
 
-        @trame_dataclass
-        class ErrorData:
+        class ErrorData(TrameStateDataModel):
             path: Path
 
         pytest.fail("Should trigger a NonSerializableType exception")
@@ -59,8 +54,7 @@ def test_watch():
     watch_exec_count = 0
     watch_count_expect = None
 
-    @trame_dataclass
-    class TestWatch:
+    class TestWatch(TrameStateDataModel):
         count: int = 1
         a: str | None
         b: str | None = "b"
@@ -132,8 +126,7 @@ async def test_async_watch(wait_time):
     watch_exec_count = 0
     watch_count_expect = None
 
-    @trame_dataclass
-    class TestWatch:
+    class TestWatch(TrameStateDataModel):
         count: int = 1
         a: str | None
         b: str | None = "b"

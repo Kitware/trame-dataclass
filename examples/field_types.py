@@ -7,11 +7,10 @@ from trame_server.core import Server
 from trame.app import TrameApp
 from trame.ui.html import DivLayout
 from trame.widgets import html
-from trame_dataclass.core import Field, FieldMode, trame_dataclass, watch
+from trame_dataclass.core import Field, FieldMode, TrameStateDataModel, watch
 
 
-@trame_dataclass
-class MixFields:
+class MixFields(TrameStateDataModel):
     normal: tuple[float, float, float] = (1.0, 0.0, 0.0)
     mixed_type: tuple[bool, int, float, str] = (False, 10, 3.14159, "Hello")
     server_only: Server | None = Field(mode=FieldMode.SERVER_ONLY)

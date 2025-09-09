@@ -1,7 +1,7 @@
 from wslink import register as export_rpc
 from wslink.websocket import LinkProtocol
 
-from trame_dataclass.core import get_instance, is_trame_dataclass
+from trame_dataclass.core import TrameStateDataModel, get_instance
 
 
 def compute_definition(trame_dataclass_class):
@@ -9,7 +9,7 @@ def compute_definition(trame_dataclass_class):
         "name": trame_dataclass_class.__name__,
         "dataclass_containers": [
             f.name
-            for f in trame_dataclass_class.__trame_dataclass_fields__.values()
+            for f in trame_dataclass_class._FIELDS.values()
             if f.dataclass_container
         ],
     }
@@ -24,12 +24,12 @@ class TrameDataclassProtocol(LinkProtocol):
 
     @export_rpc("trame.dataclass.register")
     def register_instance(self, trame_dataclass):
-        if is_trame_dataclass(trame_dataclass):
+        if isinstance(trame_dataclass, TrameStateDataModel):
             self.register_definition(trame_dataclass.__class__)
             trame_dataclass.register_flush_implementation(self.push_delta)
 
     def register_definition(self, trame_dataclass_class):
-        if not is_trame_dataclass(trame_dataclass_class):
+        if not issubclass(trame_dataclass_class, TrameStateDataModel):
             return None
 
         if trame_dataclass_class in self.class_definitions:
@@ -80,7 +80,7 @@ class TrameDataclassProtocol(LinkProtocol):
         # print("update_state", msg)
         for dc_id, state in msg.items():
             obj = get_instance(dc_id)
-            fields = obj.__class__.__trame_dataclass_fields__
+            fields = obj._FIELDS
             if obj is not None:
                 for k, v in state.items():
                     field = fields.get(k)

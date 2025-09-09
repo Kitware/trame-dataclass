@@ -248,7 +248,7 @@ def _type_is_dataclass(annotation_type):
     if isinstance(annotation_type, str):
         return True
 
-    if issubclass(annotation_type, StateDataModel):
+    if inspect.isclass(annotation_type) and issubclass(annotation_type, StateDataModel):
         return True
 
     if isinstance(annotation_type, types.UnionType):

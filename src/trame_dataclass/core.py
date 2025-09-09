@@ -57,6 +57,7 @@ _COMPOSITE_TYPES = frozenset(
         set,
         list,
         dict,
+        tuple,
     }
 )
 
@@ -159,7 +160,7 @@ def _save_field(field, src, dst):
         dst[field.name] = field.encoder(getattr(src, field.name))
     else:
         value = getattr(src, field.name)
-        if isinstance(value, TrameStateDataModel):
+        if isinstance(value, StateDataModel):
             value.flush()
             value = f"_dataclass: {value._id}"
         dst[field.name] = value
@@ -174,7 +175,7 @@ def _repr_type(annotation_type):
     if isinstance(annotation_type, types.UnionType):
         return f"({annotation_type})"
 
-    if issubclass(annotation_type, TrameStateDataModel):
+    if issubclass(annotation_type, StateDataModel):
         return annotation_type.__name__
 
     if isinstance(annotation_type, type):
@@ -190,7 +191,7 @@ def _repr_default(value):
 
 
 def _repr_value(value):
-    if isinstance(value, TrameStateDataModel):
+    if isinstance(value, StateDataModel):
         return "\n      ".join(str(value).split("\n"))
     if isinstance(value, str):
         return f'"{value}"'
@@ -247,7 +248,7 @@ def _type_is_dataclass(annotation_type):
     if isinstance(annotation_type, str):
         return True
 
-    if issubclass(annotation_type, TrameStateDataModel):
+    if issubclass(annotation_type, StateDataModel):
         return True
 
     if isinstance(annotation_type, types.UnionType):
@@ -291,7 +292,7 @@ def _type_default(annotation_type):
     if isinstance(annotation_type, types.GenericAlias):
         return _type_default(annotation_type.__origin__)
 
-    if issubclass(annotation_type, TrameStateDataModel):
+    if issubclass(annotation_type, StateDataModel):
         return ContainerFactory(annotation_type)
 
     raise InvalidDefaultForType(annotation_type)
@@ -302,7 +303,7 @@ def _type_default(annotation_type):
 # -----------------------------------------------------------------------------
 
 
-class TrameStateDataModel:
+class StateDataModel:
     def __init_subclass__(cls, **kwargs):
         cls_annotations = cls.__dict__.get("__annotations__", {})
         cls_fields = []
@@ -329,7 +330,7 @@ class TrameStateDataModel:
         cls.__HAS_SERVER = any(f.mode.has_server_state for f in cls_fields)
         cls.__HAS_CLIENT = any(f.mode.has_client_state for f in cls_fields)
         cls.__NEED_SYNC = any(f.mode.need_sync for f in cls_fields)
-        cls.__VALID_KEYS = {f.name for f in cls_fields}
+        cls.__VALID_KEYS = {f.name for f in cls_fields if f.mode.has_set}
 
     def __init__(self, trame_server=None, **kwargs):
         self.__id = _next_id()
@@ -601,7 +602,7 @@ def decode_dataclass_dict(data):
 __all__ = [
     "Field",
     "FieldMode",
-    "TrameStateDataModel",
+    "StateDataModel",
     "get_instance",
     "watch",
 ]

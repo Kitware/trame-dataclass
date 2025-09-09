@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v1.1.0 (2025-09-09)
+
+### Documentation
+
+- Add testing scenario
+  ([`415e88e`](https://github.com/Kitware/trame-dataclass/commit/415e88eb6f78234dff3ca54f8e35a3f742cb42c0))
+
+### Features
+
+- **StateDataModel**: Use base class instead of decorator
+  ([`052eee8`](https://github.com/Kitware/trame-dataclass/commit/052eee8588aa069b0bb0f413547a98e4260ddd98))
+
+### Refactoring
+
+- Rename base class to StateDataModel
+  ([`8ba6e3d`](https://github.com/Kitware/trame-dataclass/commit/8ba6e3d112c194e5767fb38fab87ff56208a9cb6))
+
+- Use class instead of decorator
+  ([`ee243f8`](https://github.com/Kitware/trame-dataclass/commit/ee243f8dd6a762e7c36062a41f916c5547fe0859))
+
+
 ## v1.0.4 (2025-09-05)
 
 ### Bug Fixes

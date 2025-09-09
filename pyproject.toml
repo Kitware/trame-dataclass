@@ -1,6 +1,6 @@
 [project]
 name = "trame-dataclass"
-version = "1.0.4"
+version = "1.1.0"
 description = "Dataclass for trame UI binding"
 authors = [{ name = "Kitware Inc." }]
 dependencies = ["trame_client>=3.10"]

@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.1.1 (2025-09-09)
+
+### Bug Fixes
+
+- Guard class comparison
+  ([`c478401`](https://github.com/Kitware/trame-dataclass/commit/c47840143ec02a94b2b420b728bea3368ce2cb55))
+
+
 ## v1.1.0 (2025-09-09)
 
 ### Documentation

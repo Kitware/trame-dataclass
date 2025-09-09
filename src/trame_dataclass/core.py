@@ -162,7 +162,7 @@ def _save_field(field, src, dst):
         value = getattr(src, field.name)
         if isinstance(value, StateDataModel):
             value.flush()
-            value = f"_dataclass: {value._id}"
+            value = value._id
         dst[field.name] = value
 
 

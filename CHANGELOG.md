@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.1.2 (2025-09-09)
+
+### Bug Fixes
+
+- Save DataModel instance as _id for client
+  ([`c9f03bc`](https://github.com/Kitware/trame-dataclass/commit/c9f03bcf08f1985d5844e7c3b3cf95c0b80f1a2d))
+
+
 ## v1.1.1 (2025-09-09)
 
 ### Bug Fixes

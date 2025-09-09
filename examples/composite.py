@@ -1,18 +1,16 @@
 from trame.app import TrameApp
 from trame.ui.html import DivLayout
 from trame.widgets import html
-from trame_dataclass.core import trame_dataclass
+from trame_dataclass.core import TrameStateDataModel
 
 
-@trame_dataclass
-class User:
+class User(TrameStateDataModel):
     first_name: str = "John"
     last_name: str = "Doe"
     age: int = 1
 
 
-@trame_dataclass
-class AddressBook:
+class AddressBook(TrameStateDataModel):
     list_of_things: list
     list_of_int: list[int]
     contacts: list[User]

@@ -15,11 +15,6 @@ from trame_common.obj.component import TrameComponent
 from trame_dataclass import module as dataclass_module
 
 # -----------------------------------------------------------------------------
-# internal field names
-# -----------------------------------------------------------------------------
-_FIELDS = "__trame_dataclass_fields__"
-
-# -----------------------------------------------------------------------------
 # Id generator
 # -----------------------------------------------------------------------------
 INSTANCES = weakref.WeakValueDictionary()
@@ -159,256 +154,15 @@ def can_be_decorated(x):
     return inspect.ismethod(x) or inspect.isfunction(x)
 
 
-# -----------------------------------------------------------------------------
-# Method to add to trame_dataclass
-# -----------------------------------------------------------------------------
-
-
-def _create_methods(fields, server, client, sync, valid_keys):
-    methods_to_register = {}
-
-    def __init__(self, trame_server=None, **kwargs):
-        self.__id = _next_id()
-        self.__trame_server = trame_server
-
-        # Register all instances
-        INSTANCES[self.__id] = self
-
-        self._dirty_set = set()
-        self._sync = sync
-        self._watchers = []
-        self._next_watcher_id = 1
-        self._pending_task = None
-        self._flush_impl = None
-        self._subscriptions = []
-
-        if server:
-            self._server_state = {}
-
-        if client:
-            self._client_state = {}
-
-        # set default values
-        for f in fields:
-            f.setup_instance(self)
-
-        # initialize fields from kwargs
-        self.update(**kwargs)
-
-        # register to server
-        if self.server is not None:
-            self.server.enable_module(dataclass_module)
-            if self.server.running:
-                # register protocol directly
-                self._register_server()
-            else:
-                # wait for server to be ready
-                self.server.controller.on_server_ready.add(self._register_server)
-
-        # check decorated methods
-        for k in inspect.getmembers(self.__class__, can_be_decorated):
-            fn = getattr(self, k[0])
-
-            # Handle @watch
-            if "_watch" in fn.__dict__:
-                field_names = tuple(fn.__dict__["_watch"])
-                self._subscriptions.append(self.watch(field_names, fn))
-
-    def _register_server(self, **_):
-        self.server.protocol_call("trame.dataclass.register", self)
-
-    def register_flush_implementation(self, push_function):
-        self._flush_impl = push_function
-
-    def update(self, **kwargs):
-        for key in valid_keys & set(kwargs.keys()):
-            setattr(self, key, kwargs[key])
-
-    def __repr__(self):
-        max_size = max(len(f.name) for f in fields)
-        fields_info = [
-            f"{f.name:<{max_size}} [{f.mode} | enc({'custom' if f.encoder and f.decoder else 'json'}) | {_repr_type(f.type_annotation)}: {_repr_default(f.default)} ]: {_repr_value(getattr(self, f.name))}"
-            for f in fields
-        ]
-        return f"{self.__class__.__name__} ({self._id}) - {self._dirty_set if len(self._dirty_set) else 'Synched'}{os.linesep} - {f'{os.linesep} - '.join(fields_info)}"
-
-    def _on_dirty(self):
-        dirty_copy = set(self._dirty_set)
-
-        self._notify_watcher(dirty_copy, sync=True)
-        if self._pending_task is None and check_loop_status():
-            self._pending_task = asyncio.create_task(self._async_update(dirty_copy))
-            self._pending_task.add_done_callback(handle_task_result)
-
-            # only clear if you know that the dirty copy will be processed
-            # otherwise wait for completion to pickup the dirty left over.
-            self._dirty_set.clear()
-
-        if not check_loop_status():
-            # need to clear dirty if async is out of the picture
-            self._dirty_set.clear()
-
-    def _notify_watcher(self, dirty_set: set[str] | None = None, sync=False):
-        if dirty_set is None:
-            dirty_set = set(self._dirty_set)
-
-        for w in self._watchers:
-            w.trigger(self, dirty_set, sync=sync)
-
-    async def _async_update(self, dirty_set: set[str]):
-        self._notify_watcher(dirty_set, sync=False)
-        if sync:
-            self.flush(dirty_set)
-
-        self._pending_task = None
-
-        # reschedule ourself if remaining dirty
-        if self._dirty_set and check_loop_status():
-            dirty_set = set(self._dirty_set)
-            self._dirty_set.clear()
-
-            self._pending_task = asyncio.create_task(self._async_update(dirty_set))
-            self._pending_task.add_done_callback(handle_task_result)
-
-    def clear_watchers(self):
-        self._watchers.clear()
-
-    def clone(self):
-        other = self.__class__()
-        state = getattr(self, "_server_state", getattr(self, "_client_state", {}))
-        other.update(**state)
-        return other
-
-    methods_to_register["__init__"] = __init__
-    methods_to_register["update"] = update
-    methods_to_register["clone"] = clone
-    methods_to_register["__repr__"] = __repr__
-    methods_to_register["_on_dirty"] = _on_dirty
-    methods_to_register["_notify_watcher"] = _notify_watcher
-    methods_to_register["_async_update"] = _async_update
-    methods_to_register["_register_server"] = _register_server
-    methods_to_register["clear_watchers"] = clear_watchers
-    methods_to_register["register_flush_implementation"] = register_flush_implementation
-
-    # Optionally add flush method
-    if sync:
-
-        def flush(self, dirty_set: set[str] | None = None):
-            """Flush the data to the client."""
-            if self._flush_impl is None:
-                return
-
-            if dirty_set is None:
-                dirty_set = set(self._dirty_set)
-                self._dirty_set.clear()
-            else:
-                for name in dirty_set:
-                    self._dirty_set.discard(name)
-
-            fields = getattr(self.__class__, _FIELDS)
-            for name in dirty_set:
-                _save_field(fields.get(name), self, self._client_state)
-
-            # Send data over the network
-            msg = {
-                "id": self._id,
-                "state": {k: self._client_state[k] for k in dirty_set},
-            }
-            self._flush_impl(msg)
-
-        methods_to_register["flush"] = flush
-
-    return methods_to_register
-
-
-def _m_get_id(self):
-    return self.__id
-
-
-def _m_get_server(self):
-    return self.__trame_server
-
-
-def _m_set_server(self, v):
-    if self.__trame_server != v:
-        self.__trame_server = v
-        if v:
-            v.enable_module(dataclass_module)
-            self._register_server()
-
-
 def _save_field(field, src, dst):
     if field.encoder:
         dst[field.name] = field.encoder(getattr(src, field.name))
     else:
         value = getattr(src, field.name)
-        if is_trame_dataclass(value):
+        if isinstance(value, TrameStateDataModel):
             value.flush()
             value = f"_dataclass: {value._id}"
         dst[field.name] = value
-
-
-def _m_get_client_state(self):
-    # Make sure the client_state is fully filled
-    fields = getattr(self.__class__, _FIELDS).values()
-    dirty = set(self._dirty_set)
-    for field in fields:
-        if field.name in dirty or field.name not in self._client_state:
-            _save_field(field, self, self._client_state)
-
-    return self._client_state
-
-
-def _m_watch(
-    self,
-    field_names: tuple[str],
-    callback_func: WatcherCallback,
-    sync: bool = False,
-    eager: bool = False,
-) -> Callable:
-    """Register a callback to be called when one or more fields change.
-
-    Args:
-        field_names (list[str]): Name(s) of the field(s) to watch.
-        callback_func (callable): Callback function to be called when the field(s) change.
-        sync (bool): Whether to execute the callback synchronously. By default this get triggered asynchronously.
-        eager (bool): Whether to execute the callback immediately after registration.
-
-    Returns:
-        callable: Unwatch function to unregister the callback.
-    """
-    watcher = Watcher(
-        self._next_watcher_id, field_names, set(field_names), callback_func, sync
-    )
-    self._next_watcher_id += 1
-    self._watchers.append(watcher)
-
-    def unwatch():
-        self._watchers.remove(watcher)
-
-    if eager:
-        watcher.trigger(self, eager=eager)
-
-    return unwatch
-
-
-def _m_Provider(
-    self, name: str = "data", instance: str | None = None
-) -> TrameComponent:
-    """Register a data provider to be used by the client.
-
-    Args:
-        name (str): Name of the data variable that will be available within the nested scope.
-        instance (str): Id of the trame_dataclass instance to use for filling the data. This behave like any other Widget property, so you can make it dynamic to switch at runtime the delivered data.
-
-    Returns:
-        widget: instance of the widget to put within your UI definition."""
-    from trame_dataclass.widgets.dataclass import Provider
-
-    if instance is None:
-        instance = (f"'{self._id}'",)
-
-    return Provider(name=name, instance=instance)
 
 
 # -----------------------------------------------------------------------------
@@ -420,7 +174,7 @@ def _repr_type(annotation_type):
     if isinstance(annotation_type, types.UnionType):
         return f"({annotation_type})"
 
-    if is_trame_dataclass(annotation_type):
+    if issubclass(annotation_type, TrameStateDataModel):
         return annotation_type.__name__
 
     if isinstance(annotation_type, type):
@@ -436,7 +190,7 @@ def _repr_default(value):
 
 
 def _repr_value(value):
-    if is_trame_dataclass(value):
+    if isinstance(value, TrameStateDataModel):
         return "\n      ".join(str(value).split("\n"))
     if isinstance(value, str):
         return f'"{value}"'
@@ -493,7 +247,7 @@ def _type_is_dataclass(annotation_type):
     if isinstance(annotation_type, str):
         return True
 
-    if is_trame_dataclass(annotation_type):
+    if issubclass(annotation_type, TrameStateDataModel):
         return True
 
     if isinstance(annotation_type, types.UnionType):
@@ -537,7 +291,7 @@ def _type_default(annotation_type):
     if isinstance(annotation_type, types.GenericAlias):
         return _type_default(annotation_type.__origin__)
 
-    if is_trame_dataclass(annotation_type):
+    if issubclass(annotation_type, TrameStateDataModel):
         return ContainerFactory(annotation_type)
 
     raise InvalidDefaultForType(annotation_type)
@@ -548,52 +302,253 @@ def _type_default(annotation_type):
 # -----------------------------------------------------------------------------
 
 
-def _process_class(cls):
-    # print(cls)
-    # print(get_type_hints(cls))
-    cls_annotations = cls.__dict__.get("__annotations__", {})
-    cls_fields = []
-    for name, a_type in cls_annotations.items():
-        initial_value = cls.__dict__.get(name, None)
-        if initial_value is not None and isinstance(initial_value, Field):
-            initial_value.setup_annotation(name, a_type)
-            cls_fields.append(initial_value)
+class TrameStateDataModel:
+    def __init_subclass__(cls, **kwargs):
+        cls_annotations = cls.__dict__.get("__annotations__", {})
+        cls_fields = []
+        for name, a_type in cls_annotations.items():
+            initial_value = cls.__dict__.get(name, None)
+            if initial_value is not None and isinstance(initial_value, Field):
+                initial_value.setup_annotation(name, a_type)
+                cls_fields.append(initial_value)
+            else:
+                if not _type_compatibility(a_type):
+                    msg = f"{a_type} is not supported"
+                    raise NonSerializableType(msg)
+
+                field = Field(default=initial_value)
+                field.setup_annotation(name, a_type)
+                cls_fields.append(field)
+
+        # add class metadata
+        cls._FIELDS = {f.name: f for f in cls_fields}
+        for f in cls_fields:
+            f.setup_class(cls)
+
+        # Extract field meta summary
+        cls.__HAS_SERVER = any(f.mode.has_server_state for f in cls_fields)
+        cls.__HAS_CLIENT = any(f.mode.has_client_state for f in cls_fields)
+        cls.__NEED_SYNC = any(f.mode.need_sync for f in cls_fields)
+        cls.__VALID_KEYS = {f.name for f in cls_fields}
+
+    def __init__(self, trame_server=None, **kwargs):
+        self.__id = _next_id()
+        self.__trame_server = trame_server
+
+        # Register all instances
+        INSTANCES[self.__id] = self
+
+        self._dirty_set = set()
+        self._watchers = []
+        self._next_watcher_id = 1
+        self._pending_task = None
+        self._flush_impl = None
+        self._subscriptions = []
+
+        if self.__HAS_SERVER:
+            self._server_state = {}
+
+        if self.__HAS_CLIENT:
+            self._client_state = {}
+
+        # set default values
+        for f in self._FIELDS.values():
+            f.setup_instance(self)
+
+        # initialize fields from kwargs
+        self.update(**kwargs)
+
+        # register to server
+        if self.server is not None:
+            self.server.enable_module(dataclass_module)
+            if self.server.running:
+                # register protocol directly
+                self._register_server()
+            else:
+                # wait for server to be ready
+                self.server.controller.on_server_ready.add(self._register_server)
+
+        # check decorated methods
+        for k in inspect.getmembers(self.__class__, can_be_decorated):
+            fn = getattr(self, k[0])
+
+            # Handle @watch
+            if "_watch" in fn.__dict__:
+                field_names = tuple(fn.__dict__["_watch"])
+                self._subscriptions.append(self.watch(field_names, fn))
+
+    def _register_server(self, **_):
+        self.server.protocol_call("trame.dataclass.register", self)
+
+    def register_flush_implementation(self, push_function):
+        self._flush_impl = push_function
+
+    def update(self, **kwargs):
+        for key in self.__VALID_KEYS & set(kwargs.keys()):
+            setattr(self, key, kwargs[key])
+
+    def __repr__(self):
+        max_size = max(len(name) for name in self._FIELDS)
+        fields_info = [
+            f"{f.name:<{max_size}} [{f.mode} | enc({'custom' if f.encoder and f.decoder else 'json'}) | {_repr_type(f.type_annotation)}: {_repr_default(f.default)} ]: {_repr_value(getattr(self, f.name))}"
+            for f in self._FIELDS.values()
+        ]
+        return f"{self.__class__.__name__} ({self._id}) - {self._dirty_set if len(self._dirty_set) else 'Synched'}{os.linesep} - {f'{os.linesep} - '.join(fields_info)}"
+
+    def _on_dirty(self):
+        dirty_copy = set(self._dirty_set)
+
+        self._notify_watcher(dirty_copy, sync=True)
+        if self._pending_task is None and check_loop_status():
+            self._pending_task = asyncio.create_task(self._async_update(dirty_copy))
+            self._pending_task.add_done_callback(handle_task_result)
+
+            # only clear if you know that the dirty copy will be processed
+            # otherwise wait for completion to pickup the dirty left over.
+            self._dirty_set.clear()
+
+        if not check_loop_status():
+            # need to clear dirty if async is out of the picture
+            self._dirty_set.clear()
+
+    def _notify_watcher(self, dirty_set: set[str] | None = None, sync=False):
+        if dirty_set is None:
+            dirty_set = set(self._dirty_set)
+
+        for w in self._watchers:
+            w.trigger(self, dirty_set, sync=sync)
+
+    async def _async_update(self, dirty_set: set[str]):
+        self._notify_watcher(dirty_set, sync=False)
+        if self.__NEED_SYNC:
+            self.flush(dirty_set)
+
+        self._pending_task = None
+
+        # reschedule ourself if remaining dirty
+        if self._dirty_set and check_loop_status():
+            dirty_set = set(self._dirty_set)
+            self._dirty_set.clear()
+
+            self._pending_task = asyncio.create_task(self._async_update(dirty_set))
+            self._pending_task.add_done_callback(handle_task_result)
+
+    def clear_watchers(self):
+        self._watchers.clear()
+
+    def clone(self):
+        other = self.__class__()
+        state = getattr(self, "_server_state", getattr(self, "_client_state", {}))
+        other.update(**state)
+        return other
+
+    def watch(
+        self,
+        field_names: tuple[str],
+        callback_func: WatcherCallback,
+        sync: bool = False,
+        eager: bool = False,
+    ) -> Callable:
+        """Register a callback to be called when one or more fields change.
+
+        Args:
+            field_names (list[str]): Name(s) of the field(s) to watch.
+            callback_func (callable): Callback function to be called when the field(s) change.
+            sync (bool): Whether to execute the callback synchronously. By default this get triggered asynchronously.
+            eager (bool): Whether to execute the callback immediately after registration.
+
+        Returns:
+            callable: Unwatch function to unregister the callback.
+        """
+        watcher = Watcher(
+            self._next_watcher_id, field_names, set(field_names), callback_func, sync
+        )
+        self._next_watcher_id += 1
+        self._watchers.append(watcher)
+
+        def unwatch():
+            self._watchers.remove(watcher)
+
+        if eager:
+            watcher.trigger(self, eager=eager)
+
+        return unwatch
+
+    def Provider(
+        self, name: str = "data", instance: str | None = None
+    ) -> TrameComponent:
+        """Register a data provider to be used by the client.
+
+        Args:
+            name (str): Name of the data variable that will be available within the nested scope.
+            instance (str): Id of the trame_dataclass instance to use for filling the data. This behave like any other Widget property, so you can make it dynamic to switch at runtime the delivered data.
+
+        Returns:
+            widget: instance of the widget to put within your UI definition."""
+        from trame_dataclass.widgets.dataclass import Provider
+
+        if instance is None:
+            instance = (f"'{self._id}'",)
+
+        return Provider(name=name, instance=instance)
+
+    @property
+    def server(self):
+        return self.__trame_server
+
+    @server.setter
+    def server(self, v):
+        if self.__trame_server != v:
+            self.__trame_server = v
+            if v:
+                v.enable_module(dataclass_module)
+                self._register_server()
+
+    @property
+    def client_state(self):
+        if not self.__NEED_SYNC:
+            msg = f'"{self.__class__}" has no client state'
+            raise RuntimeError(msg)
+
+        # Make sure the client_state is fully filled
+        fields = self._FIELDS.values()
+        dirty = set(self._dirty_set)
+        for field in fields:
+            if field.name in dirty or field.name not in self._client_state:
+                _save_field(field, self, self._client_state)
+
+        return self._client_state
+
+    @property
+    def _id(self):
+        return self.__id
+
+    def flush(self, dirty_set: set[str] | None = None):
+        """Flush the data to the client."""
+        if not self.__NEED_SYNC:
+            msg = f'"{self.__class__}" does not have any fields to sync'
+            raise RuntimeError(msg)
+
+        if self._flush_impl is None:
+            return
+
+        if dirty_set is None:
+            dirty_set = set(self._dirty_set)
+            self._dirty_set.clear()
         else:
-            if not _type_compatibility(a_type):
-                msg = f"{a_type} is not supported"
-                raise NonSerializableType(msg)
+            for name in dirty_set:
+                self._dirty_set.discard(name)
 
-            field = Field(default=initial_value)
-            field.setup_annotation(name, a_type)
-            cls_fields.append(field)
+        fields = self._FIELDS
+        for name in dirty_set:
+            _save_field(fields.get(name), self, self._client_state)
 
-    # add class metadata
-    setattr(cls, _FIELDS, {f.name: f for f in cls_fields})
-    for f in cls_fields:
-        f.setup_class(cls)
-
-    # Extract field meta summary
-    server = any(f.mode.has_server_state for f in cls_fields)
-    client = any(f.mode.has_client_state for f in cls_fields)
-    sync = any(f.mode.need_sync for f in cls_fields)
-    valid_keys = {f.name for f in cls_fields}
-
-    # add default getter properties
-    cls._id = property(_m_get_id)
-    cls.server = property(_m_get_server, _m_set_server)
-    if sync:
-        cls.client_state = property(_m_get_client_state)
-
-    # Add default methods
-    for name, fn in _create_methods(
-        cls_fields, server, client, sync, valid_keys
-    ).items():
-        setattr(cls, name, fn)
-    cls.watch = _m_watch
-    cls.Provider = _m_Provider
-
-    # return decorated class
-    return cls
+        # Send data over the network
+        msg = {
+            "id": self._id,
+            "state": {k: self._client_state[k] for k in dirty_set},
+        }
+        self._flush_impl(msg)
 
 
 # -----------------------------------------------------------------------------
@@ -646,9 +601,8 @@ def decode_dataclass_dict(data):
 __all__ = [
     "Field",
     "FieldMode",
+    "TrameStateDataModel",
     "get_instance",
-    "is_trame_dataclass",
-    "trame_dataclass",
     "watch",
 ]
 
@@ -657,29 +611,6 @@ def get_instance(instance_id: str):
     # print(f"get_instance({instance_id})")
     # print(" => ", INSTANCES[instance_id])
     return INSTANCES[instance_id]
-
-
-def trame_dataclass(cls=None, **_):
-    """Annotation for state based dataclass"""
-
-    def wrap(cls):
-        return _process_class(cls)
-
-    if cls is None:
-        return wrap
-
-    return wrap(cls)
-
-
-def is_trame_dataclass(obj):
-    """Returns True if obj is a trame_dataclass or an instance of a
-    trame_dataclass."""
-    cls = (
-        obj
-        if isinstance(obj, type) and not isinstance(obj, types.GenericAlias)
-        else type(obj)
-    )
-    return hasattr(cls, _FIELDS)
 
 
 class FieldMode(Enum):

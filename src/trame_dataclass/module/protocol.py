@@ -1,7 +1,7 @@
 from wslink import register as export_rpc
 from wslink.websocket import LinkProtocol
 
-from trame_dataclass.core import TrameStateDataModel, get_instance
+from trame_dataclass.core import StateDataModel, get_instance
 
 
 def compute_definition(trame_dataclass_class):
@@ -24,12 +24,12 @@ class TrameDataclassProtocol(LinkProtocol):
 
     @export_rpc("trame.dataclass.register")
     def register_instance(self, trame_dataclass):
-        if isinstance(trame_dataclass, TrameStateDataModel):
+        if isinstance(trame_dataclass, StateDataModel):
             self.register_definition(trame_dataclass.__class__)
             trame_dataclass.register_flush_implementation(self.push_delta)
 
     def register_definition(self, trame_dataclass_class):
-        if not issubclass(trame_dataclass_class, TrameStateDataModel):
+        if not issubclass(trame_dataclass_class, StateDataModel):
             return None
 
         if trame_dataclass_class in self.class_definitions:

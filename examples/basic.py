@@ -1,10 +1,10 @@
 from trame.app import TrameApp
 from trame.ui.html import DivLayout
 from trame.widgets import html
-from trame_dataclass.core import TrameStateDataModel
+from trame_dataclass.core import StateDataModel
 
 
-class SimpleStructure(TrameStateDataModel):
+class SimpleStructure(StateDataModel):
     name: str = "John Doe"
     age: int = 1
     derived_value: int
@@ -26,7 +26,7 @@ class GettingStarted(TrameApp):
     def _build_ui(self):
         with DivLayout(self.server) as self.ui:
             html.Button("Server change", click=self._modify_data)
-            html.Div("Getting started with TrameStateDataModel")
+            html.Div("Getting started with StateDataModel")
             with self._data.Provider(name="user"):
                 html.Pre("{{ JSON.stringify(user, null, 2) }}")
                 html.Hr()

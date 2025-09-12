@@ -123,7 +123,11 @@ export class DataclassManager {
 
   async handleNestedDataClass(id, key, value) {
     if (value === null) {
-      this.dataStates[id].refs[key].value = null;
+      if (!this.dataStates[id].refs[key]) {
+        this.dataStates[id].refs[key] = ref(value);
+      } else {
+        this.dataStates[id].refs[key].value = value;
+      }
     } else if (Array.isArray(value)) {
       // array structure
       const newArray = [];
@@ -147,7 +151,11 @@ export class DataclassManager {
           );
         }
       }
-      this.dataStates[id].refs[key].value = newArray;
+      if (!this.dataStates[id].refs[key]) {
+        this.dataStates[id].refs[key] = ref(newArray);
+      } else {
+        this.dataStates[id].refs[key].value = newArray;
+      }
     } else if (typeof value === "string") {
       // direct dataclass
       const objId = value;

@@ -95,6 +95,10 @@ class WatcherExecution(Exception):
     pass
 
 
+class ClientOnlyFieldError(Exception):
+    pass
+
+
 # -----------------------------------------------------------------------------
 # Internal classes
 # -----------------------------------------------------------------------------
@@ -644,6 +648,10 @@ class FieldMode(Enum):
         return self._client
 
     @property
+    def is_client_only(self):
+        return self.has_client_state and not self.has_server_state
+
+    @property
     def need_sync(self):
         return self.has_server_state and self.has_client_state
 
@@ -729,10 +737,16 @@ class Field:
         def _get(self):
             return self._server_state[name]
 
+        def _get_client_only(self):  # noqa: ARG001
+            msg = f'"{name}" is client-side only and cannot be accessed on the server'
+            raise ClientOnlyFieldError(msg)
+
         if self.mode.has_get and self.mode.has_set:
             setattr(cls, name, property(_get, _set))
         elif self.mode.has_get:
             setattr(cls, name, property(_get))
+        elif self.mode.is_client_only:
+            setattr(cls, name, property(_get_client_only))
 
     def setup_instance(self, obj):
         # Assign value

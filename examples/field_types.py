@@ -7,7 +7,13 @@ from trame_server.core import Server
 from trame.app import TrameApp
 from trame.ui.html import DivLayout
 from trame.widgets import html
-from trame_dataclass.core import Field, FieldMode, StateDataModel, watch
+from trame_dataclass.core import (
+    ClientOnlyFieldError,
+    Field,
+    FieldMode,
+    StateDataModel,
+    watch,
+)
 
 
 class MixFields(StateDataModel):
@@ -25,10 +31,15 @@ class MixFieldsApp(TrameApp):
     def __init__(self, server=None):
         super().__init__(server)
         self.data = MixFields(self.server)
-        print("====> client_only", self.data.client_only)
-        assert not hasattr(self.data, "client_only"), (
-            "Client only field should not be present in Python"
-        )
+
+        try:
+            self.data.client_only  # noqa: B018
+        except ClientOnlyFieldError:
+            pass
+        else:
+            msg = "Client only field should not be accessible in Python"
+            raise Exception(msg)
+
         self.data.server_only = self.server  # server is not serializable
         self._build_ui()
 

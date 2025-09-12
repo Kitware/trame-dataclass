@@ -106,7 +106,7 @@ jobs:
 
       - name: Python Semantic Release
         id: release
-        uses: python-semantic-release/python-semantic-release@10.4
+        uses: python-semantic-release/python-semantic-release@10.4.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 

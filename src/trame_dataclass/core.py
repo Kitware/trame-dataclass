@@ -5,7 +5,7 @@ import string
 import types
 import warnings
 import weakref
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any, Callable, TypeVar
@@ -111,7 +111,7 @@ class ContainerFactory:
 @dataclass
 class Watcher:
     id: int
-    args: tuple[str]
+    args: Sequence[str]
     dependency: set[str]
     callback: WatcherCallback
     sync: bool

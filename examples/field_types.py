@@ -9,9 +9,9 @@ from trame.ui.html import DivLayout
 from trame.widgets import html
 from trame_dataclass.core import (
     ClientOnlyFieldError,
-    Field,
     FieldMode,
     StateDataModel,
+    field,
     watch,
 )
 
@@ -19,8 +19,8 @@ from trame_dataclass.core import (
 class MixFields(StateDataModel):
     normal: tuple[float, float, float] = (1.0, 0.0, 0.0)
     mixed_type: tuple[bool, int, float, str] = (False, 10, 3.14159, "Hello")
-    server_only: Server | None = Field(mode=FieldMode.SERVER_ONLY)
-    client_only: int = Field(default=0, mode=FieldMode.CLIENT_ONLY)
+    server_only: Server | None = field(mode=FieldMode.SERVER_ONLY)
+    client_only: int = field(default=0, mode=FieldMode.CLIENT_ONLY)
 
     @watch("server_only")
     def _on_server_bound(self, server):
@@ -45,7 +45,7 @@ class MixFieldsApp(TrameApp):
 
     def _build_ui(self):
         with DivLayout(self.server) as self.ui:
-            with self.data.Provider(name="data"):
+            with self.data.provide_as("data"):
                 html.Pre("{{ JSON.stringify(data, null,2) }}")
                 html.Input(
                     type="range",

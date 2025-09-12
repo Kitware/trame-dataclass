@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.1.3 (2025-09-12)
+
+### Bug Fixes
+
+- A few type issues and rename Provider to `provide_as`
+  ([`5df8d4c`](https://github.com/Kitware/trame-dataclass/commit/5df8d4c327ae388ba1ca2b231e1e2dfb5862eac9))
+
+- Raise exception when client-only fields accessed
+  ([`3db5d28`](https://github.com/Kitware/trame-dataclass/commit/3db5d28cb3209874228864db12d69ab5525985fd))
+
+
 ## v1.1.2 (2025-09-09)
 
 ### Bug Fixes

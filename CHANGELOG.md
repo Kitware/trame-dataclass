@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v1.1.4 (2025-09-12)
+
+### Bug Fixes
+
+- **js**: Create ref when missing
+  ([`44c7764`](https://github.com/Kitware/trame-dataclass/commit/44c77640dc567e2be2104fdcb0953fc4f7dffde4))
+
+### Continuous Integration
+
+- Update semantic-release version
+  ([`5c88fbb`](https://github.com/Kitware/trame-dataclass/commit/5c88fbbda463eeb9e13d680c77df3ce72ee27015))
+
+- Update semantic-release version
+  ([`be31508`](https://github.com/Kitware/trame-dataclass/commit/be31508a931515918fd1e4431f91909633d69ffa))
+
+- **semantic-release**: Try to prevent error for non-release
+  ([`52f765b`](https://github.com/Kitware/trame-dataclass/commit/52f765b2d0e1738bddad76de47f7efc69ad6408f))
+
+
 ## v1.1.3 (2025-09-12)
 
 ### Bug Fixes

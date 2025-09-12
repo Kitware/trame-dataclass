@@ -27,7 +27,7 @@ class GettingStarted(TrameApp):
         with DivLayout(self.server) as self.ui:
             html.Button("Server change", click=self._modify_data)
             html.Div("Getting started with StateDataModel")
-            with self._data.Provider(name="user"):
+            with self._data.provide_as("user"):
                 html.Pre("{{ JSON.stringify(user, null, 2) }}")
                 html.Hr()
                 html.Div(

@@ -1,6 +1,6 @@
 from trame.app import TrameApp
 from trame.ui.html import DivLayout
-from trame.widgets import html
+from trame.widgets import dataclass, html
 from trame_dataclass.core import StateDataModel
 
 
@@ -39,6 +39,7 @@ class GettingStarted(TrameApp):
             self.state.active_id = None if user is None else user._id
 
     def on_contacts_change(self, contacts: list[User] | None):
+        contacts = [] if contacts is None else contacts
         print("contacts:", [v._id for v in contacts])
 
     def remove_active(self):
@@ -50,7 +51,7 @@ class GettingStarted(TrameApp):
     def _build_ui(self):
         with DivLayout(self.server) as self.ui:
             html.Div("Active User")
-            with self._edit.Provider(name="user"):
+            with self._edit.provide_as("user"):
                 html.Span("First name:")
                 html.Input(type="text", v_model="user.first_name")
                 html.Span("Last name:")
@@ -64,11 +65,11 @@ class GettingStarted(TrameApp):
             html.Button("Remove Active", click=self.remove_active)
             html.Hr()
             html.Div("Active user")
-            with self._book.Provider(name="book"):
+            with self._book.provide_as("book"):
                 html.Pre("{{ JSON.stringify(book.active, null, 2) }}")
             html.Hr()
             html.Div("Contacts")
-            with self._book.Provider(name="book"):
+            with self._book.provide_as("book"):
                 with html.Ul():
                     with html.Li(
                         "({{ user._id }}) {{ user.first_name }} {{ user.last_name }} ({{ user.age }})",
@@ -82,7 +83,7 @@ class GettingStarted(TrameApp):
                         )
             html.Hr()
             html.Div("Edit active [{{ active_id }}]")
-            with self._book.Provider(name="active", instance=("active_id", None)):
+            with dataclass.Provider(name="active", instance=("active_id", None)):
                 with html.Template(v_if="active_available"):
                     html.Span("First name:")
                     html.Input(type="text", v_model="active.first_name")

@@ -3,7 +3,7 @@ from pathlib import Path
 from trame.app import TrameApp
 from trame.ui.html import DivLayout
 from trame.widgets import html
-from trame_dataclass.core import Field, StateDataModel
+from trame_dataclass.core import StateDataModel, field
 
 
 def path_encode(p: Path) -> str:
@@ -29,8 +29,8 @@ def list_decode(value: list[str] | None) -> list[Path] | None:
 
 
 class CustomStructure(StateDataModel):
-    path: Path = Field(default=Path.cwd(), encoder=path_encode, decoder=path_decode)
-    children: list[Path] | None = Field(encoder=list_encode, decoder=list_decode)
+    path: Path = field(default=Path.cwd(), encoder=path_encode, decoder=path_decode)
+    children: list[Path] | None = field(encoder=list_encode, decoder=list_decode)
 
 
 class CustomEncoder(TrameApp):
@@ -42,14 +42,14 @@ class CustomEncoder(TrameApp):
 
     def _list_children(self, file_path: Path):
         if file_path.exists():
-            self._data.children = file_path.glob("*")
+            self._data.children = list(file_path.glob("*"))
         else:
             self._data.children = None
 
     def _build_ui(self):
         with DivLayout(self.server) as self.ui:
             html.Div("Getting started with StateDataModel")
-            with self._data.Provider(name="data"):
+            with self._data.provide_as("data"):
                 html.Input(v_model="data.path", style="width: 95%;")
                 html.Hr()
                 html.Pre("{{ JSON.stringify(data.children, null, 2) }}")

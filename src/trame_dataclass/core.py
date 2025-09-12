@@ -10,9 +10,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any, Callable, TypeVar
 
-from trame_common.obj.component import TrameComponent
-
 from trame_dataclass import module as dataclass_module
+from trame_dataclass.widgets.dataclass import Provider
 
 # -----------------------------------------------------------------------------
 # Id generator
@@ -449,7 +448,7 @@ class StateDataModel:
 
     def watch(
         self,
-        field_names: tuple[str],
+        field_names: Sequence[str],
         callback_func: WatcherCallback,
         sync: bool = False,
         eager: bool = False,
@@ -479,22 +478,14 @@ class StateDataModel:
 
         return unwatch
 
-    def Provider(
-        self, name: str = "data", instance: str | None = None
-    ) -> TrameComponent:
+    def provide_as(self, name) -> Provider:
         """Register a data provider to be used by the client.
 
         Args:
             name (str): Name of the data variable that will be available within the nested scope.
-            instance (str): Id of the trame_dataclass instance to use for filling the data. This behave like any other Widget property, so you can make it dynamic to switch at runtime the delivered data.
-
         Returns:
             widget: instance of the widget to put within your UI definition."""
-        from trame_dataclass.widgets.dataclass import Provider
-
-        if instance is None:
-            instance = (f"'{self._id}'",)
-
+        instance = (f"'{self._id}'",)
         return Provider(name=name, instance=instance)
 
     @property
@@ -604,9 +595,9 @@ def decode_dataclass_dict(data):
 # Public API
 # -----------------------------------------------------------------------------
 __all__ = [
-    "Field",
     "FieldMode",
     "StateDataModel",
+    "field",
     "get_instance",
     "watch",
 ]
@@ -755,6 +746,21 @@ class Field:
             setattr(obj, self.name, value)
         elif self.mode.has_client_state:
             obj._client_state[self.name] = value
+
+
+# -----------------------------------------------------------------------------
+
+
+# This function is used instead of exposing Field creation directly,
+# so that a type checker can be told (via overloads) that this is a
+# function whose type depends on its parameters.
+def field(
+    mode: FieldMode = FieldMode.DEFAULT,
+    default: Any = None,
+    encoder: Encoder | None = None,
+    decoder: Decoder | None = None,
+) -> Any:
+    return Field(mode, default, encoder, decoder)
 
 
 # -----------------------------------------------------------------------------

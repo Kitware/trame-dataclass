@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.1.5 (2025-09-17)
+
+### Bug Fixes
+
+- **issubclass**: Guard using isclass
+  ([`11b6e26`](https://github.com/Kitware/trame-dataclass/commit/11b6e2619264c857bde284c0ac7bdc85a1202cff))
+
+
 ## v1.1.4 (2025-09-12)
 
 ### Bug Fixes

@@ -178,7 +178,7 @@ def _repr_type(annotation_type):
     if isinstance(annotation_type, types.UnionType):
         return f"({annotation_type})"
 
-    if issubclass(annotation_type, StateDataModel):
+    if inspect.isclass(annotation_type) and issubclass(annotation_type, StateDataModel):
         return annotation_type.__name__
 
     if isinstance(annotation_type, type):
@@ -295,7 +295,7 @@ def _type_default(annotation_type):
     if isinstance(annotation_type, types.GenericAlias):
         return _type_default(annotation_type.__origin__)
 
-    if issubclass(annotation_type, StateDataModel):
+    if inspect.isclass(annotation_type) and issubclass(annotation_type, StateDataModel):
         return ContainerFactory(annotation_type)
 
     raise InvalidDefaultForType(annotation_type)

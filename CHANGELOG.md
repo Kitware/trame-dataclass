@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.2.0 (2025-10-09)
+
+### Features
+
+- **decorator**: Add support for kwargs on @watch
+  ([`1138a69`](https://github.com/Kitware/trame-dataclass/commit/1138a698c4469578f9a98a81bfb083c49876abc3))
+
+
 ## v1.1.5 (2025-09-17)
 
 ### Bug Fixes

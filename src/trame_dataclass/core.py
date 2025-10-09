@@ -378,8 +378,8 @@ class StateDataModel:
 
             # Handle @watch
             if "_watch" in fn.__dict__:
-                field_names = tuple(fn.__dict__["_watch"])
-                self._subscriptions.append(self.watch(field_names, fn))
+                field_names, kwargs = fn.__dict__["_watch"]
+                self._subscriptions.append(self.watch(field_names, fn, **kwargs))
 
     def _register_server(self, **_):
         self.server.protocol_call("trame.dataclass.register", self)
@@ -766,13 +766,11 @@ def field(
 # -----------------------------------------------------------------------------
 
 
-def watch(*args):
+def watch(*args, **kwargs):
     """Method decorator to watch state change"""
 
     def decorate(f):
-        if not hasattr(f, "_watch"):
-            f._watch = []
-        f._watch.extend(args)
+        f._watch = (tuple(args), kwargs)
         return f
 
     return decorate

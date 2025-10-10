@@ -6,7 +6,7 @@ import types
 import warnings
 import weakref
 from collections.abc import Awaitable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, TypeVar
 
@@ -118,6 +118,7 @@ class Watcher:
     dependency: set[str]
     callback: WatcherCallback
     sync: bool
+    bg_tasks: set[asyncio.Task] = field(default_factory=set)
 
     def trigger(
         self,
@@ -127,7 +128,7 @@ class Watcher:
         eager: bool = False,
     ):
         if self.sync != sync and not eager:
-            return
+            return None
 
         if dirty is None or self.dependency & dirty:
             args = [getattr(obj, name) for name in self.args]
@@ -135,6 +136,11 @@ class Watcher:
             if inspect.isawaitable(coroutine):
                 bg_task = asyncio.create_task(coroutine)
                 bg_task.add_done_callback(handle_task_result)
+                bg_task.add_done_callback(self.bg_tasks.discard)
+                self.bg_tasks.add(bg_task)
+                return bg_task
+
+        return None
 
 
 def handle_task_result(task: asyncio.Task) -> None:
@@ -346,6 +352,7 @@ class StateDataModel:
         self._watchers = []
         self._next_watcher_id = 1
         self._pending_task = None
+        self._pending_sync_tasks = []
         self._flush_impl = None
         self._subscriptions = []
 
@@ -420,12 +427,20 @@ class StateDataModel:
             dirty_set = set(self._dirty_set)
 
         for w in self._watchers:
-            w.trigger(self, dirty_set, sync=sync)
+            bg_tasks = w.trigger(self, dirty_set, sync=sync)
+            if bg_tasks:
+                self._pending_sync_tasks.append(bg_tasks)
 
     async def _async_update(self, dirty_set: set[str]):
         self._notify_watcher(dirty_set, sync=False)
         if self.__NEED_SYNC:
             self.flush(dirty_set)
+
+        # wait for any pending completion
+        while len(self._pending_sync_tasks):
+            pending_tasks = [t for t in self._pending_sync_tasks if not t.done()]
+            self._pending_sync_tasks.clear()
+            await asyncio.wait(pending_tasks, return_when=asyncio.ALL_COMPLETED)
 
         self._pending_task = None
 
@@ -445,6 +460,10 @@ class StateDataModel:
         state = getattr(self, "_server_state", getattr(self, "_client_state", {}))
         other.update(**state)
         return other
+
+    async def completion(self):
+        while self._pending_task is not None:
+            await self._pending_task
 
     def watch(
         self,

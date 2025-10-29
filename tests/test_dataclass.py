@@ -141,6 +141,8 @@ def test_gc():
     ],
 )
 async def test_async_watch(wait_time):
+    print("+" * 120)
+    print(f"test_async_watch({wait_time})")
     server = Server()
     watch_exec_count = 0
     watch_count_expect = None
@@ -161,8 +163,9 @@ async def test_async_watch(wait_time):
     await asyncio.sleep(0.01)
 
     # watch callback (make it async to ensure support)
-    async def watch_callback(count):
+    def watch_callback(count):
         nonlocal watch_exec_count
+        nonlocal watch_count_expect
         watch_exec_count += 1
         print(f"callback: {watch_exec_count=}")
         print(f"callback::assert {watch_count_expect=} == {count=}")
@@ -182,9 +185,10 @@ async def test_async_watch(wait_time):
     print("=" * 60)
     print("test edit")
     print("=" * 60)
-    watch_count_expect = 1
+    watch_count_expect = 2
+    assert data.count == 1, "data.count (1)"
     data.count += 1
-    assert watch_count_expect == data.count, "data.count"
+    assert data.count == 2, "data.count (2)"
     await asyncio.sleep(wait_time)
     assert watch_exec_count == 1, "watch execution"
 
@@ -195,15 +199,20 @@ async def test_async_watch(wait_time):
     data.a = "a"
     await asyncio.sleep(wait_time)
     assert watch_exec_count == 1, "no watch execution"
+    assert data.count == 2, "data.count (2)"
     print("=" * 60)
     print("test watch again")
     print("=" * 60)
-    watch_count_expect = 2
+    watch_count_expect = 3
+    assert data.count == 2, "data.count (2)"
     data.count += 1
+    assert data.count == 3, "data.count (3)"
     await asyncio.sleep(wait_time)
     assert watch_exec_count == 2, "change watch execution"
-    watch_count_expect = 3
+    watch_count_expect = 4
+    assert data.count == 3, "data.count (3)"
     data.count += 1
+    assert data.count == 4, "data.count (4)"
     await asyncio.sleep(wait_time)
     assert watch_exec_count == 3, "another change watch execution"
 
@@ -212,6 +221,9 @@ async def test_async_watch(wait_time):
     print("test unwatch")
     print("=" * 60)
     unwatch()
+    assert data.count == 4, "data.count (4)"
     data.count += 1
+    assert data.count == 5, "data.count (5)"
     await asyncio.sleep(wait_time)
     assert watch_exec_count == 3, "No more watch"
+    print("=" * 60)

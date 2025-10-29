@@ -144,18 +144,11 @@ class Watcher:
 
 
 def handle_task_result(task: asyncio.Task) -> None:
-    print("+" * 60)
-    print("handle_task_result")
-    print("+" * 60)
     try:
         task.result()
-        print(" ==> OK")
-        print("+" * 60)
     except asyncio.CancelledError:
         pass  # Task cancellation should not be logged as an error.
     except Exception as e:  # pylint: disable=broad-except
-        print(e)
-        print("+" * 60)
         raise WatcherExecution() from e
 
 

@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, TypeVar
 
+from loguru import logger
+
 from trame_dataclass import module as dataclass_module
 from trame_dataclass.widgets.dataclass import Provider
 
@@ -148,9 +150,8 @@ def handle_task_result(task: asyncio.Task) -> None:
         task.result()
     except asyncio.CancelledError:
         pass  # Task cancellation should not be logged as an error.
-    except AssertionError as e:
-        raise e
     except Exception as e:  # pylint: disable=broad-except
+        logger.exception(e)
         raise WatcherExecution() from e
 
 

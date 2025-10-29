@@ -212,7 +212,7 @@ async def test_async_watch(wait_time):
     if wait_time > 0:
         await data.completion()
     assert watch_exec_count == 2, "change watch execution"
-    watch_count_expect = 40
+    watch_count_expect = 4
     assert data.count == 3, "data.count (3)"
     data.count += 1
     assert data.count == 4, "data.count (4)"

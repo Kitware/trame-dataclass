@@ -164,7 +164,8 @@ async def test_async_watch(wait_time):
     async def watch_callback(count):
         nonlocal watch_exec_count
         watch_exec_count += 1
-        print("exec: watch_callback", count, watch_exec_count)
+        print(f"callback: {watch_exec_count=}")
+        print(f"callback::assert {watch_count_expect=} == {count=}")
         assert watch_count_expect == count, "callback execution"
 
     # test eager

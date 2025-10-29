@@ -135,9 +135,9 @@ class Watcher:
             coroutine = self.callback(*args)
             if inspect.isawaitable(coroutine):
                 bg_task = asyncio.create_task(coroutine)
+                self.bg_tasks.add(bg_task)
                 bg_task.add_done_callback(handle_task_result)
                 bg_task.add_done_callback(self.bg_tasks.discard)
-                self.bg_tasks.add(bg_task)
                 return bg_task
 
         return None
@@ -429,9 +429,10 @@ class StateDataModel:
             dirty_set = set(self._dirty_set)
 
         for w in self._watchers:
-            bg_tasks = w.trigger(self, dirty_set, sync=sync)
-            if bg_tasks:
-                self._pending_sync_tasks.append(bg_tasks)
+            bg_task = w.trigger(self, dirty_set, sync=sync)
+            if bg_task:
+                print(f"{bg_task=}")
+                self._pending_sync_tasks.append(bg_task)
 
     async def _async_update(self, dirty_set: set[str]):
         self._notify_watcher(dirty_set, sync=False)
@@ -440,9 +441,11 @@ class StateDataModel:
 
         # wait for any pending completion
         while len(self._pending_sync_tasks):
+            print("wait for pending task", len(self._pending_sync_tasks))
             pending_tasks = [t for t in self._pending_sync_tasks if not t.done()]
             self._pending_sync_tasks.clear()
             await asyncio.wait(pending_tasks, return_when=asyncio.ALL_COMPLETED)
+            print("done waiting", len(pending_tasks))
 
         self._pending_task = None
 

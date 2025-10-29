@@ -434,7 +434,6 @@ class StateDataModel:
         for w in self._watchers:
             bg_task = w.trigger(self, dirty_set, sync=sync)
             if bg_task:
-                print(f"{bg_task=}")
                 self._pending_sync_tasks.append(bg_task)
 
     async def _async_update(self, dirty_set: set[str]):
@@ -444,11 +443,9 @@ class StateDataModel:
 
         # wait for any pending completion
         while len(self._pending_sync_tasks):
-            print("wait for pending task", len(self._pending_sync_tasks))
             pending_tasks = [t for t in self._pending_sync_tasks if not t.done()]
             self._pending_sync_tasks.clear()
             await asyncio.wait(pending_tasks, return_when=asyncio.ALL_COMPLETED)
-            print("done waiting", len(pending_tasks))
 
         self._pending_task = None
 

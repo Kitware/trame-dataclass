@@ -169,7 +169,9 @@ async def test_async_watch(wait_time):
         assert watch_count_expect == count, "callback execution"
 
     # test eager
+    print("=" * 60)
     print("test eager")
+    print("=" * 60)
     watch_count_expect = 0
     unwatch = data.watch(("count",), watch_callback)
     assert watch_exec_count == 0, "Eager watch execution"
@@ -177,18 +179,25 @@ async def test_async_watch(wait_time):
     assert watch_exec_count == 0, "async First state on watch"
 
     # test edit
+    print("=" * 60)
     print("test edit")
+    print("=" * 60)
     watch_count_expect = 1
     data.count += 1
+    assert watch_count_expect == data.count, "data.count"
     await asyncio.sleep(wait_time)
     assert watch_exec_count == 1, "watch execution"
 
     # test other field modification
+    print("=" * 60)
     print("test other field")
+    print("=" * 60)
     data.a = "a"
     await asyncio.sleep(wait_time)
     assert watch_exec_count == 1, "no watch execution"
+    print("=" * 60)
     print("test watch again")
+    print("=" * 60)
     watch_count_expect = 2
     data.count += 1
     await asyncio.sleep(wait_time)
@@ -199,7 +208,9 @@ async def test_async_watch(wait_time):
     assert watch_exec_count == 3, "another change watch execution"
 
     # test unwatch
+    print("=" * 60)
     print("test unwatch")
+    print("=" * 60)
     unwatch()
     data.count += 1
     await asyncio.sleep(wait_time)

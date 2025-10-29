@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v1.3.0 (2025-10-29)
+
+### Bug Fixes
+
+- **async**: Expose async completion method
+  ([`32a1cf6`](https://github.com/Kitware/trame-dataclass/commit/32a1cf683770561783c04de859c5d44e7cad3bab))
+
+- **leak**: Prevent instances to stick around
+  ([`1b9ea05`](https://github.com/Kitware/trame-dataclass/commit/1b9ea05a8d4287cbee0ea1677451ea6df85b06b9))
+
+### Continuous Integration
+
+- Increase yield time for windows
+  ([`982677e`](https://github.com/Kitware/trame-dataclass/commit/982677ec2a77e13bee99508491b4326216a9dc3c))
+
+- Increase yield time for windows
+  ([`3d444de`](https://github.com/Kitware/trame-dataclass/commit/3d444de73a61ac13ddde41e99cb25734f68adb0a))
+
+### Features
+
+- **async**: Provide method to wait for completion
+  ([`19482dc`](https://github.com/Kitware/trame-dataclass/commit/19482dc78f8ac1959aa095c9ab32b96d67fd2d7c))
+
+
 ## v1.2.0 (2025-10-09)
 
 ### Features

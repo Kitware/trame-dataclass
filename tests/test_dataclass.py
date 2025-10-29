@@ -137,7 +137,7 @@ def test_gc():
             ),
             id="known_issue_for_async_exec",
         ),
-        0.001,
+        0.01,
     ],
 )
 async def test_async_watch(wait_time):

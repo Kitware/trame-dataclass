@@ -3,7 +3,10 @@ name = "trame-dataclass"
 version = "1.2.0"
 description = "Dataclass for trame UI binding"
 authors = [{ name = "Kitware Inc." }]
-dependencies = ["trame_client>=3.10"]
+dependencies = [
+    "trame_client>=3.10",
+    "loguru",
+]
 requires-python = ">=3.9"
 readme = "README.rst"
 license = { text = "Apache Software License" }

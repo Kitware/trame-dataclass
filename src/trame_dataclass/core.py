@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, TypeVar
 
+from loguru import logger
+
 from trame_dataclass import module as dataclass_module
 from trame_dataclass.widgets.dataclass import Provider
 
@@ -135,9 +137,9 @@ class Watcher:
             coroutine = self.callback(*args)
             if inspect.isawaitable(coroutine):
                 bg_task = asyncio.create_task(coroutine)
+                self.bg_tasks.add(bg_task)
                 bg_task.add_done_callback(handle_task_result)
                 bg_task.add_done_callback(self.bg_tasks.discard)
-                self.bg_tasks.add(bg_task)
                 return bg_task
 
         return None
@@ -149,6 +151,7 @@ def handle_task_result(task: asyncio.Task) -> None:
     except asyncio.CancelledError:
         pass  # Task cancellation should not be logged as an error.
     except Exception as e:  # pylint: disable=broad-except
+        logger.exception(e)
         raise WatcherExecution() from e
 
 
@@ -429,9 +432,9 @@ class StateDataModel:
             dirty_set = set(self._dirty_set)
 
         for w in self._watchers:
-            bg_tasks = w.trigger(self, dirty_set, sync=sync)
-            if bg_tasks:
-                self._pending_sync_tasks.append(bg_tasks)
+            bg_task = w.trigger(self, dirty_set, sync=sync)
+            if bg_task:
+                self._pending_sync_tasks.append(bg_task)
 
     async def _async_update(self, dirty_set: set[str]):
         self._notify_watcher(dirty_set, sync=False)

@@ -377,7 +377,9 @@ class StateDataModel:
                 self._register_server()
             else:
                 # wait for server to be ready
-                self.server.controller.on_server_ready.add(self._register_server)
+                self.server.controller.on_server_ready.add(
+                    weakref.WeakMethod(self._register_server)
+                )
 
         # check decorated methods
         for k in inspect.getmembers(self.__class__, can_be_decorated):

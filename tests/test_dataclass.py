@@ -107,6 +107,25 @@ def test_watch():
     assert watch_exec_count == 4
 
 
+def test_gc():
+    server = Server()
+    instance_count = 0
+
+    class TestDel(StateDataModel):
+        count: int = 1
+
+        def __del__(self):
+            nonlocal instance_count
+            instance_count -= 1
+
+    instance_count += 1
+    data = TestDel(server)
+    assert data
+    assert instance_count == 1
+    data = None
+    assert instance_count == 0
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "wait_time",

@@ -149,6 +149,7 @@ def handle_task_result(task: asyncio.Task) -> None:
     except asyncio.CancelledError:
         pass  # Task cancellation should not be logged as an error.
     except Exception as e:  # pylint: disable=broad-except
+        print(e)
         raise WatcherExecution() from e
 
 

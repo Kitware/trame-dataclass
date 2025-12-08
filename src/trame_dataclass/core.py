@@ -461,7 +461,7 @@ class StateDataModel:
         self._watchers.clear()
 
     def clone(self):
-        other = self.__class__()
+        other = self.__class__(trame_server=self.server)
         state = getattr(self, "_server_state", getattr(self, "_client_state", {}))
         other.update(**state)
         return other

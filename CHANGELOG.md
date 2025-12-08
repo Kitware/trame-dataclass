@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.1 (2025-12-08)
+
+### Bug Fixes
+
+- **clone**: Attach server automatically
+  ([`167a6a0`](https://github.com/Kitware/trame-dataclass/commit/167a6a07f313d83de56d701b4431e9477335530f))
+
+
 ## v1.3.0 (2025-10-29)
 
 ### Bug Fixes

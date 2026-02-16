@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-02-16)
+
+### Features
+
+- V2 implementation on py side
+  ([`70d50b5`](https://github.com/Kitware/trame-dataclass/commit/70d50b585c535a1458b8edf9c9015e2a2f8f2c98))
+
+
 ## v1.3.1 (2025-12-08)
 
 ### Bug Fixes

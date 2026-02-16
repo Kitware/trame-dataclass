@@ -18,12 +18,22 @@ vue_use = ["trame_dataclass"]
 
 
 # Optional if you want to execute custom initialization at module load
-def setup(server, **_):
+def setup(server, version="v1", **_):
     """Method called at initialization with possibly some custom keyword arguments"""
-    server.add_protocol_to_configure(configure_protocol)
+
+    if version == "v1":
+        server.add_protocol_to_configure(configure_protocol)
+    elif version == "v2":
+        server.add_protocol_to_configure(configure_protocol_v2)
 
 
 def configure_protocol(protocol):
     from trame_dataclass.module.protocol import TrameDataclassProtocol
+
+    protocol.registerLinkProtocol(TrameDataclassProtocol())
+
+
+def configure_protocol_v2(protocol):
+    from trame_dataclass.module.protocol_v2 import TrameDataclassProtocol
 
     protocol.registerLinkProtocol(TrameDataclassProtocol())

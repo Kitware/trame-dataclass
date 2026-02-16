@@ -1,18 +1,14 @@
 from wslink import register as export_rpc
 from wslink.websocket import LinkProtocol
 
-from trame_dataclass.core import StateDataModel, get_instance
+from trame_dataclass.v2 import StateDataModel, get_instance
 
 
 def compute_definition(trame_dataclass_class):
     client_only = getattr(trame_dataclass_class, "CLIENT_ONLY_NAMES", [])
     return {
         "name": trame_dataclass_class.__name__,
-        "dataclass_containers": [
-            f.name
-            for f in trame_dataclass_class._FIELDS.values()
-            if f.dataclass_container
-        ],
+        "dataclass_containers": list(trame_dataclass_class.DATACLASS_NAMES),
         "client_only": list(client_only),
     }
 
@@ -79,18 +75,16 @@ class TrameDataclassProtocol(LinkProtocol):
 
     @export_rpc("trame.dataclass.state.update")
     def update_state(self, msg):
-        # print("update_state", msg)
         for dc_id, state in msg.items():
             obj = get_instance(dc_id)
-            fields = obj._FIELDS
+            encoders = obj.ENCODERS
             if obj is not None:
                 for k, v in state.items():
-                    field = fields.get(k)
-                    if field.decoder:
-                        setattr(obj, k, field.decoder(v))
+                    convert = encoders.get(k)
+                    if convert:
+                        setattr(obj, k, convert.decoder(v))
                     else:
                         setattr(obj, k, v)
 
     def push_delta(self, msg):
-        # print("publish", msg)
         self.publish("trame.dataclass.publish", msg)

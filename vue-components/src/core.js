@@ -121,6 +121,10 @@ export class DataclassManager {
     ].dataclass_containers.includes(name);
   }
 
+  isClientOnly(id, name) {
+    return this.typeDefinitions[this.dataTypes[id]]?.client_only.includes(name);
+  }
+
   async handleNestedDataClass(id, key, value) {
     if (value === null) {
       if (!this.dataStates[id].refs[key]) {
@@ -214,10 +218,12 @@ export class DataclassManager {
       } else {
         refs[key] = ref(value);
       }
-      watch(
-        () => refs[key].value,
-        (v) => this.updateServer(id, key, v),
-      );
+      if (!this.isClientOnly(id, key)) {
+        watch(
+          () => refs[key].value,
+          (v) => this.updateServer(id, key, v),
+        );
+      }
     }
 
     if (this.dataToVue[id]) {

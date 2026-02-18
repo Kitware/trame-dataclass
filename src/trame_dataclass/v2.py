@@ -415,7 +415,6 @@ class ServerOnly:
         self._type = get_origin(self._type) or self._type
         self._default = default() if callable(default) else default
         logger.debug("type {} - default {}", self._type, self._default)
-        self._apply_default = True
         self._convert = convert
         self._has_dataclass = has_dataclass
 
@@ -443,10 +442,8 @@ class ServerOnly:
         owner.FIELD_NAMES.add(name)
 
     def __get__(self, instance, owner):
-        if self._apply_default:
-            self._apply_default = False
+        if self._name not in instance._server_state:
             instance._server_state[self._name] = self._default
-            print("default applied", self._name)
         return instance._server_state.get(self._name)
 
     def __set__(self, instance, value):

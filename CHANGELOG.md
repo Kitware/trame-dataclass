@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.1 (2026-02-18)
+
+### Bug Fixes
+
+- **default**: Properly apply defaults in v2
+  ([`4c70c6f`](https://github.com/Kitware/trame-dataclass/commit/4c70c6fde22667eed26be5e943086ca7c8e465bd))
+
+
 ## v1.4.0 (2026-02-16)
 
 ### Features

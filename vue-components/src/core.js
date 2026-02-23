@@ -174,6 +174,14 @@ export class DataclassManager {
           this.dataStates[objId].refs,
         );
       }
+      if (!this.dataStates[id].refs[key]) {
+        this.dataStates[id].refs[key] = ref(
+          this.internalReactiveObjects[objId],
+        );
+      } else {
+        this.dataStates[id].refs[key].value =
+          this.internalReactiveObjects[objId];
+      }
     } else {
       // dict structure
       const newStruct = reactive({});

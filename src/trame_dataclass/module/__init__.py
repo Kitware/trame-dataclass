@@ -1,19 +1,10 @@
 from pathlib import Path
 
-# Compute local path to serve
+from trame_dataclass import __version__
+
 serve_path = str(Path(__file__).with_name("serve").resolve())
-
-# Serve directory for JS/CSS files
-serve = {"__trame_dataclass": serve_path}
-
-# List of JS files to load (usually from the serve path above)
-scripts = ["__trame_dataclass/trame_dataclass.umd.js"]
-
-# List of CSS files to load (usually from the serve path above)
-if (Path(serve_path) / "style.css").exists():
-    styles = ["__trame_dataclass/style.css"]
-
-# List of Vue plugins to install/load
+serve = {f"__trame_dataclass_{__version__}": serve_path}
+scripts = [f"__trame_dataclass_{__version__}/trame_dataclass.umd.js"]
 vue_use = ["trame_dataclass"]
 
 

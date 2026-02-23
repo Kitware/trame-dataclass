@@ -22,9 +22,10 @@ Usage example
 
 .. code-block:: console
 
-    from trame.app import TrameApp, StateDataModel
+    from trame.app import TrameApp
     from trame.ui.html import DivLayout
     from trame.widgets import html
+    from trame_dataclass.core import StateDataModel
 
 
     class SimpleStructure(StateDataModel):

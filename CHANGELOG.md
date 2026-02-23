@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.3 (2026-02-23)
+
+### Bug Fixes
+
+- **version**: Add version in module to prevent caching
+  ([`42012f9`](https://github.com/Kitware/trame-dataclass/commit/42012f94b2f44f9c40152b5f41c539cba73c0f9d))
+
+
 ## v1.4.2 (2026-02-23)
 
 ### Bug Fixes

@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.2 (2026-02-23)
+
+### Bug Fixes
+
+- **js**: Properly handle direct dataclass as field
+  ([`1e714ce`](https://github.com/Kitware/trame-dataclass/commit/1e714ce827b5843ef52343eb4da83af262c3ba4f))
+
+
 ## v1.4.1 (2026-02-18)
 
 ### Bug Fixes

@@ -450,8 +450,8 @@ class ServerOnly:
             owner.TYPE_CHECKING = {}
 
         self._name = name
-        owner.FIELD_NAMES.add(name)
         owner.TYPE_CHECKING[name] = self._type_checking
+        owner.FIELD_NAMES.add(name)
 
     def __get__(self, instance, owner):
         if self._name not in instance._server_state:
@@ -481,6 +481,9 @@ class Sync(ServerOnly):
         if not hasattr(owner, "FIELD_NAMES"):
             owner.FIELD_NAMES = set()
 
+        if not hasattr(owner, "TYPE_CHECKING"):
+            owner.TYPE_CHECKING = {}
+
         if not hasattr(owner, "CLIENT_NAMES"):
             owner.CLIENT_NAMES = set()
 
@@ -497,6 +500,7 @@ class Sync(ServerOnly):
             owner.ENCODERS[name] = self._convert
 
         self._name = name
+        owner.TYPE_CHECKING[name] = self._type_checking
         owner.FIELD_NAMES.add(name)
         owner.CLIENT_NAMES.add(name)
 
@@ -506,6 +510,9 @@ class ClientOnly(ServerOnly):
         if not hasattr(owner, "FIELD_NAMES"):
             owner.FIELD_NAMES = set()
 
+        if not hasattr(owner, "TYPE_CHECKING"):
+            owner.TYPE_CHECKING = {}
+
         if not hasattr(owner, "CLIENT_NAMES"):
             owner.CLIENT_NAMES = set()
 
@@ -513,6 +520,7 @@ class ClientOnly(ServerOnly):
             owner.CLIENT_ONLY_NAMES = set()
 
         self._name = name
+        owner.TYPE_CHECKING[name] = self._type_checking
         owner.FIELD_NAMES.add(name)
         owner.CLIENT_NAMES.add(name)
         owner.CLIENT_ONLY_NAMES.add(name)

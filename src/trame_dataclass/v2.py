@@ -408,7 +408,15 @@ def get_instance(instance_id: str):
 
 
 class ServerOnly:
-    def __init__(self, _type, default=None, convert=None, has_dataclass=False):
+    def __init__(
+        self,
+        _type,
+        default=None,
+        convert=None,
+        has_dataclass=False,
+        type_checking="warning",  # error, warning, ignore
+    ):
+        self._type_checking = type_checking
         self._type = get_origin(_type) or _type
         if self._type in (Union, types.UnionType):
             self._type = get_args(_type)[0]
@@ -438,8 +446,12 @@ class ServerOnly:
         if not hasattr(owner, "FIELD_NAMES"):
             owner.FIELD_NAMES = set()
 
+        if not hasattr(owner, "TYPE_CHECKING"):
+            owner.TYPE_CHECKING = {}
+
         self._name = name
         owner.FIELD_NAMES.add(name)
+        owner.TYPE_CHECKING[name] = self._type_checking
 
     def __get__(self, instance, owner):
         if self._name not in instance._server_state:
@@ -447,9 +459,17 @@ class ServerOnly:
         return instance._server_state.get(self._name)
 
     def __set__(self, instance, value):
-        if value is not None and not isinstance(value, self._type):
-            msg = f"{self._name} must be {self._type}"
-            raise TypeError(msg)
+        type_check = instance.TYPE_CHECKING[self._name]
+        if (
+            type_check in {"error", "warning"}
+            and value is not None
+            and not isinstance(value, self._type)
+        ):
+            msg = f"{self._name} must be {self._type} instead of {type(value)}"
+            if type_check == "error":
+                raise TypeError(msg)
+
+            logger.warning(msg)
 
         instance._dirty_set.add(self._name)
         instance._server_state[self._name] = value

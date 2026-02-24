@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.5 (2026-02-24)
+
+### Bug Fixes
+
+- **type_checking**: Fix error on sync/client_only
+  ([`ea39278`](https://github.com/Kitware/trame-dataclass/commit/ea39278da322fc4fb5dcb2f8ddfb9739500e68b7))
+
+
 ## v1.4.4 (2026-02-24)
 
 ### Bug Fixes

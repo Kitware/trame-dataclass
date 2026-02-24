@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.4 (2026-02-24)
+
+### Bug Fixes
+
+- **typing**: Add flexibility in type checking
+  ([`4e20c1f`](https://github.com/Kitware/trame-dataclass/commit/4e20c1f0cc3b86d35d4de2e88b3314d739604a76))
+
+
 ## v1.4.3 (2026-02-23)
 
 ### Bug Fixes

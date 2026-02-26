@@ -5,6 +5,7 @@ import types
 import weakref
 from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from typing import Any, Callable, Union, get_args, get_origin
 
 from loguru import logger
@@ -117,6 +118,17 @@ def _save_field(name, src, dst, encoder=None):
         dst[name] = value
 
 
+def _setup_class_fields(owner):
+    # set
+    for key in ["FIELD_NAMES", "DATACLASS_NAMES", "CLIENT_NAMES", "CLIENT_ONLY_NAMES"]:
+        if not hasattr(owner, key):
+            setattr(owner, key, set())
+    # dict
+    for key in ["ENCODERS", "TYPE_CHECKING"]:
+        if not hasattr(owner, key):
+            setattr(owner, key, {})
+
+
 # -----------------------------------------------------------------------------
 # Dataclass builder
 # -----------------------------------------------------------------------------
@@ -124,6 +136,12 @@ class FieldEncoder:
     def __init__(self, encoder, decoder):
         self.encoder = encoder
         self.decoder = decoder
+
+
+class TypeValidation(Enum):
+    STRICT = auto()
+    WARNING = auto()
+    SKIP = auto()
 
 
 class StateDataModel:
@@ -232,7 +250,6 @@ class StateDataModel:
 
     def clone(self):
         other = self.__class__(trame_server=self.server)
-        print(other)
         state = getattr(self, "_server_state", {})
         other.update(**state)
         return other
@@ -362,7 +379,7 @@ def decode_dataclass_item(item):
 def encode_dataclass_list(items):
     if items is None:
         return None
-    print("encode list", items)
+    # print("encode list", items)
     return [item._id for item in items]
 
 
@@ -370,8 +387,28 @@ def decode_dataclass_list(items):
     # print("decode_dataclass_list", items)
     if items is None:
         return None
-    print("decode list", items)
+    # print("decode list", items)
     return list(map(get_instance, items))
+
+
+def decode_dataclass_set(items):
+    # print("decode_dataclass_list", items)
+    if items is None:
+        return None
+    # print("decode list", items)
+    return set(map(get_instance, items))
+
+
+def encode_set(items):
+    if items is None:
+        return None
+    return list(items)
+
+
+def decode_set(items):
+    if items is None:
+        return None
+    return set(items)
 
 
 def encode_dataclass_dict(data):
@@ -396,6 +433,7 @@ __all__ = [
     "ServerOnly",
     "StateDataModel",
     "Sync",
+    "TypeValidation",
     "get_instance",
     "watch",
 ]
@@ -412,9 +450,9 @@ class ServerOnly:
         self,
         _type,
         default=None,
-        convert=None,
-        has_dataclass=False,
-        type_checking="warning",  # error, warning, ignore
+        convert: FieldEncoder = None,
+        has_dataclass: bool = False,
+        type_checking: TypeValidation = TypeValidation.WARNING,
     ):
         self._type_checking = type_checking
         self._type = get_origin(_type) or _type
@@ -433,6 +471,9 @@ class ServerOnly:
             if self._type is list:
                 encoder = encode_dataclass_list
                 decoder = decode_dataclass_list
+            elif self._type is set:
+                encoder = encode_dataclass_list
+                decoder = decode_dataclass_set
             elif self._type is dict:
                 encoder = encode_dataclass_dict
                 decoder = decode_dataclass_dict
@@ -442,13 +483,11 @@ class ServerOnly:
 
             self._convert = FieldEncoder(encoder, decoder)
 
+        if not self._convert and self._type is set:
+            self._convert = FieldEncoder(encode_set, decode_set)
+
     def __set_name__(self, owner, name):
-        if not hasattr(owner, "FIELD_NAMES"):
-            owner.FIELD_NAMES = set()
-
-        if not hasattr(owner, "TYPE_CHECKING"):
-            owner.TYPE_CHECKING = {}
-
+        _setup_class_fields(owner)
         self._name = name
         owner.TYPE_CHECKING[name] = self._type_checking
         owner.FIELD_NAMES.add(name)
@@ -461,37 +500,25 @@ class ServerOnly:
     def __set__(self, instance, value):
         type_check = instance.TYPE_CHECKING[self._name]
         if (
-            type_check in {"error", "warning"}
+            type_check in {TypeValidation.STRICT, TypeValidation.WARNING}
             and value is not None
             and not isinstance(value, self._type)
         ):
-            msg = f"{self._name} must be {self._type} instead of {type(value)}"
-            if type_check == "error":
+            msg = f"{self._name} must be {self._type} instead of {type(value)} for class {instance.__class__}"
+            if type_check == TypeValidation.STRICT:
                 raise TypeError(msg)
 
             logger.warning(msg)
 
-        instance._dirty_set.add(self._name)
-        instance._server_state[self._name] = value
-        instance._on_dirty()
+        if instance._server_state.get(self._name) != value:
+            instance._dirty_set.add(self._name)
+            instance._server_state[self._name] = value
+            instance._on_dirty()
 
 
 class Sync(ServerOnly):
     def __set_name__(self, owner, name):
-        if not hasattr(owner, "FIELD_NAMES"):
-            owner.FIELD_NAMES = set()
-
-        if not hasattr(owner, "TYPE_CHECKING"):
-            owner.TYPE_CHECKING = {}
-
-        if not hasattr(owner, "CLIENT_NAMES"):
-            owner.CLIENT_NAMES = set()
-
-        if not hasattr(owner, "ENCODERS"):
-            owner.ENCODERS = {}
-
-        if not hasattr(owner, "DATACLASS_NAMES"):
-            owner.DATACLASS_NAMES = set()
+        _setup_class_fields(owner)
 
         if self._has_dataclass:
             owner.DATACLASS_NAMES.add(name)
@@ -507,18 +534,7 @@ class Sync(ServerOnly):
 
 class ClientOnly(ServerOnly):
     def __set_name__(self, owner, name):
-        if not hasattr(owner, "FIELD_NAMES"):
-            owner.FIELD_NAMES = set()
-
-        if not hasattr(owner, "TYPE_CHECKING"):
-            owner.TYPE_CHECKING = {}
-
-        if not hasattr(owner, "CLIENT_NAMES"):
-            owner.CLIENT_NAMES = set()
-
-        if not hasattr(owner, "CLIENT_ONLY_NAMES"):
-            owner.CLIENT_ONLY_NAMES = set()
-
+        _setup_class_fields(owner)
         self._name = name
         owner.TYPE_CHECKING[name] = self._type_checking
         owner.FIELD_NAMES.add(name)

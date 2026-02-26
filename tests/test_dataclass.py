@@ -1,5 +1,4 @@
 import asyncio
-from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -41,12 +40,12 @@ def test_json_friendly_data():
 
 
 def test_complex_type():
-    with suppress(NonSerializableType):
+    with pytest.raises(NonSerializableType):
 
         class ErrorData(StateDataModel):
             path: Path
 
-        pytest.fail("Should trigger a NonSerializableType exception")
+        # pytest.fail("Should trigger a NonSerializableType exception")
 
 
 def test_watch():

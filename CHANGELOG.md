@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-02-26)
+
+### Features
+
+- **v2**: Improve encoding and type checking
+  ([`792e244`](https://github.com/Kitware/trame-dataclass/commit/792e244736366dc83839879ac594dcab76c7daec))
+
+
 ## v1.4.5 (2026-02-24)
 
 ### Bug Fixes

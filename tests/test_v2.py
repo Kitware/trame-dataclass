@@ -5,6 +5,7 @@ from trame_dataclass.v2 import (
     StateDataModel,
     Sync,
     TypeValidation,
+    get_instance,
 )
 
 
@@ -82,3 +83,12 @@ def test_serialization():
     assert isinstance(set_as_list, list)
     for obj in data.f:
         assert obj._id in set_as_list
+
+
+def test_get_instance():
+    class Dummy(StateDataModel):
+        a = Sync(int, 0)
+
+    inst = Dummy()
+    assert get_instance(inst._id) is inst
+    assert get_instance("not an id") is None

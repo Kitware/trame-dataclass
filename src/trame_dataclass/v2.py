@@ -442,7 +442,7 @@ __all__ = [
 def get_instance(instance_id: str):
     # print(f"get_instance({instance_id})")
     # print(" => ", INSTANCES[instance_id])
-    return INSTANCES[instance_id]
+    return INSTANCES.get(instance_id)
 
 
 class ServerOnly:

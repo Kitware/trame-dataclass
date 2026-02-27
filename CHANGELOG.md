@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.1 (2026-02-27)
+
+### Bug Fixes
+
+- **get_instance**: Return None with invalid id
+  ([`b85a2e1`](https://github.com/Kitware/trame-dataclass/commit/b85a2e18886e3f1729ef8fa3bcb931f450fbf322))
+
+
 ## v1.5.0 (2026-02-26)
 
 ### Features

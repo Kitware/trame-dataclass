@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.5.2 (2026-03-04)
+
+### Bug Fixes
+
+- **v2**: Remove clone and add copy
+  ([`b6d2ced`](https://github.com/Kitware/trame-dataclass/commit/b6d2cedd65f3896e30784bca0fa14d8f00202a3a))
+
+### Continuous Integration
+
+- Update pyproject validation
+  ([`bc73fee`](https://github.com/Kitware/trame-dataclass/commit/bc73fee14ebdffadac633f6f16b1f4343d8d12e8))
+
+
 ## v1.5.1 (2026-02-27)
 
 ### Bug Fixes

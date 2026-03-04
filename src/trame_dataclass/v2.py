@@ -248,11 +248,8 @@ class StateDataModel:
     def clear_watchers(self):
         self._watchers.clear()
 
-    def clone(self):
-        other = self.__class__(trame_server=self.server)
-        state = getattr(self, "_server_state", {})
-        other.update(**state)
-        return other
+    def new_instance(self):
+        return self.__class__(trame_server=self.server)
 
     async def completion(self):
         while self._pending_task is not None:
@@ -325,6 +322,15 @@ class StateDataModel:
                     _save_field(name, self, self._client_state)
 
         return self._client_state
+
+    def update_from_client_state(self, partial_state):
+        encoders = self.ENCODERS
+        for k, v in partial_state.items():
+            convert = encoders.get(k)
+            if convert:
+                setattr(self, k, convert.decoder(v))
+            else:
+                setattr(self, k, v)
 
     @property
     def _id(self):
@@ -434,6 +440,7 @@ __all__ = [
     "StateDataModel",
     "Sync",
     "TypeValidation",
+    "copy",
     "get_instance",
     "watch",
 ]
@@ -550,3 +557,8 @@ def watch(*args, **kwargs):
         return f
 
     return decorate
+
+
+def copy(src, dst, *keys):
+    for key in keys:
+        setattr(dst, key, getattr(src, key))

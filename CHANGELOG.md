@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.3 (2026-03-07)
+
+### Bug Fixes
+
+- **perf**: Prevent sending data back to client
+  ([`fbf29b7`](https://github.com/Kitware/trame-dataclass/commit/fbf29b739ff6a2d9736230126c9195cbcde2723a))
+
+
 ## v1.5.2 (2026-03-04)
 
 ### Bug Fixes

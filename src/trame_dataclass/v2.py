@@ -112,10 +112,15 @@ def can_be_decorated(x):
 
 def _save_field(name, src, dst, encoder=None):
     value = getattr(src, name)
+
     if encoder:
-        dst[name] = encoder(value)
-    else:
+        value = encoder(value)
+
+    if name not in dst or dst[name] != value:
         dst[name] = value
+        return True
+
+    return False
 
 
 def _setup_class_fields(owner):
@@ -145,13 +150,14 @@ class TypeValidation(Enum):
 
 
 class StateDataModel:
-    def __init__(self, trame_server=None, **kwargs):
+    def __init__(self, trame_server=None, enable_collaboration=False, **kwargs):
         self.__id = _next_id()
         self.__trame_server = trame_server
 
         # Register all instances
         INSTANCES[self.__id] = self
 
+        self._enable_collaboration = enable_collaboration
         self._server_state = {}
         self._client_state = {}
         self._dirty_set = set()
@@ -326,6 +332,9 @@ class StateDataModel:
     def update_from_client_state(self, partial_state):
         encoders = self.ENCODERS
         for k, v in partial_state.items():
+            if not self._enable_collaboration:
+                self._client_state[k] = v
+
             convert = encoders.get(k)
             if convert:
                 setattr(self, k, convert.decoder(v))
@@ -336,7 +345,12 @@ class StateDataModel:
     def _id(self):
         return self.__id
 
-    def flush(self, dirty_set: set[str] | None = None):
+    def dirty(self, *keys):
+        """Mark variable dirty and trigger watchers"""
+        self._dirty_set.update(keys)
+        self._on_dirty()
+
+    def flush(self, dirty_set: set[str] | None = None, force_push=False):
         """Flush the data to the client."""
         if self._flush_impl is None:
             return
@@ -349,19 +363,25 @@ class StateDataModel:
                 self._dirty_set.discard(name)
 
         key_to_send = list(dirty_set & self.CLIENT_NAMES)
+        modified_keys = []
         for name in key_to_send:
             encoder = None
             if name in self.ENCODERS:
                 encoder = self.ENCODERS[name].encoder
 
-            _save_field(name, self, self._client_state, encoder)
+            if _save_field(name, self, self._client_state, encoder):
+                modified_keys.append(name)
+
+        if force_push:
+            modified_keys = list(key_to_send)
 
         # Send data over the network
-        msg = {
-            "id": self._id,
-            "state": {k: self._client_state[k] for k in key_to_send},
-        }
-        self._flush_impl(msg)
+        if modified_keys:
+            msg = {
+                "id": self._id,
+                "state": {k: self._client_state[k] for k in modified_keys},
+            }
+            self._flush_impl(msg)
 
 
 # -----------------------------------------------------------------------------

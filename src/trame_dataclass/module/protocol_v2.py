@@ -16,7 +16,6 @@ def compute_definition(trame_dataclass_class):
 class TrameDataclassProtocol(LinkProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self.class_definitions = {}
         self.next_class_definition_id = 1
 
@@ -77,14 +76,8 @@ class TrameDataclassProtocol(LinkProtocol):
     def update_state(self, msg):
         for dc_id, state in msg.items():
             obj = get_instance(dc_id)
-            encoders = obj.ENCODERS
             if obj is not None:
-                for k, v in state.items():
-                    convert = encoders.get(k)
-                    if convert:
-                        setattr(obj, k, convert.decoder(v))
-                    else:
-                        setattr(obj, k, v)
+                obj.update_from_client_state(state)
 
     def push_delta(self, msg):
         self.publish("trame.dataclass.publish", msg)

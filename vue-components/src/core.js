@@ -12,6 +12,12 @@ function updateWidget(id, objectState, widgetState) {
   Object.assign(widgetState.data, objectState.refs);
 }
 
+function updateServerState(serverState, partialState) {
+  for (const [key, value] of Object.entries(partialState)) {
+    serverState[key] = JSON.stringify(value);
+  }
+}
+
 export class DataclassManager {
   constructor() {
     this.client = null;
@@ -24,6 +30,10 @@ export class DataclassManager {
     this.dataToVue = {};
     this.pendingClientServerQueue = [];
     this.pendingFlushRequest = 0;
+    this.triggers = {};
+    this.deepReactiveWatchers = {};
+    this.pendingDeepReactives = {};
+    this.pendingFetch = {};
   }
 
   connect(client) {
@@ -40,19 +50,25 @@ export class DataclassManager {
           return;
         }
 
-        Object.assign(this.dataStates[id].server, state);
+        // Capture server state for update comparison
+        updateServerState(this.dataStates[id].server, state);
+
         for (const [key, value] of Object.entries(state)) {
           if (this.isDataClass(id, key)) {
             await this.handleNestedDataClass(id, key, value);
           } else {
-            this.dataStates[id].refs[key].value = value;
+            this.dataStates[id].refs[key].value = this.wrapValue(
+              id,
+              key,
+              value,
+            );
           }
         }
       });
   }
 
   updateServer(id, name, value) {
-    this.pendingClientServerQueue.push([id, name, value]);
+    this.pendingClientServerQueue.push([id, name, JSON.stringify(value)]);
     this.flushToServer();
   }
 
@@ -64,7 +80,8 @@ export class DataclassManager {
     const msg = {};
     let sendingSomething = 0;
     while (this.pendingClientServerQueue.length) {
-      const [id, name, value] = this.pendingClientServerQueue.shift();
+      const [id, name, strValue] = this.pendingClientServerQueue.shift();
+      const value = JSON.parse(strValue);
       let valueToSend = value;
 
       // Handle nested dataclass
@@ -86,10 +103,7 @@ export class DataclassManager {
           }
         }
       }
-      if (
-        JSON.stringify(this.dataStates[id].server[name]) ===
-        JSON.stringify(valueToSend)
-      ) {
+      if (this.dataStates[id].server[name] === strValue) {
         continue;
       }
       if (!msg[id]) {
@@ -100,6 +114,11 @@ export class DataclassManager {
     }
     if (sendingSomething) {
       try {
+        // Update server cache
+        for (const [id, state] of Object.entries(msg)) {
+          updateServerState(this.dataStates[id].server, state);
+        }
+
         await this.client
           .getConnection()
           .getSession()
@@ -116,13 +135,44 @@ export class DataclassManager {
   }
 
   isDataClass(id, name) {
-    return this.typeDefinitions[
-      this.dataTypes[id]
-    ].dataclass_containers.includes(name);
+    return this.typeDefinitions[this.dataTypes[id]].dataclass_containers[name];
   }
 
   isClientOnly(id, name) {
-    return this.typeDefinitions[this.dataTypes[id]]?.client_only.includes(name);
+    return this.typeDefinitions[this.dataTypes[id]]?.client_only[name];
+  }
+
+  isDeepReactive(id, name) {
+    return this.typeDefinitions[this.dataTypes[id]]?.deep_reactive[name];
+  }
+
+  wrapValue(id, name, value) {
+    if (!this.isDeepReactive(id, name)) {
+      return value;
+    }
+
+    const fullKey = `${id}::${name}`;
+    const unwatch = this.deepReactiveWatchers[fullKey];
+    if (unwatch) {
+      unwatch();
+    }
+    this.deepReactiveWatchers[fullKey] = null;
+
+    if (value === null || value === undefined) {
+      return value;
+    }
+
+    const r = reactive(value);
+    const trigger = this.triggers[fullKey];
+    if (!trigger) {
+      if (!this.pendingDeepReactives[id]) {
+        this.pendingDeepReactives[id] = [];
+      }
+      this.pendingDeepReactives[id].push([fullKey, r]);
+    } else {
+      this.deepReactiveWatchers[fullKey] = watch(r, trigger);
+    }
+    return r;
   }
 
   async handleNestedDataClass(id, key, value) {
@@ -156,9 +206,9 @@ export class DataclassManager {
         }
       }
       if (!this.dataStates[id].refs[key]) {
-        this.dataStates[id].refs[key] = ref(newArray);
+        this.dataStates[id].refs[key] = ref(this.wrapValue(id, key, newArray));
       } else {
-        this.dataStates[id].refs[key].value = newArray;
+        this.dataStates[id].refs[key].value = this.wrapValue(id, key, newArray);
       }
     } else if (typeof value === "string") {
       // direct dataclass
@@ -204,45 +254,78 @@ export class DataclassManager {
     }
   }
 
-  async fetchState(id) {
-    const refs = { _id: id };
-    const data = await this.client
-      .getConnection()
-      .getSession()
-      .call("trame.dataclass.state.get", [id]);
-
-    this.dataTypes[id] = data.definition;
-    this.dataStates[id] = { refs, server: data.state };
-
-    if (!this.typeDefinitions[data.definition]) {
-      await this.fetchDefinition(data.definition);
+  getTrigger(id, key, refs) {
+    const fullKey = `${id}::${key}`;
+    const fn = this.triggers[fullKey];
+    if (fn) {
+      return fn;
     }
+    this.triggers[fullKey] = () => {
+      this.updateServer(id, key, refs[key].value);
+    };
+    return this.triggers[fullKey];
+  }
 
-    for (const [key, value] of Object.entries(data.state)) {
-      // check if nested dataclass
-      if (this.isDataClass(id, key)) {
-        refs[key] = ref(null);
-        await this.handleNestedDataClass(id, key, value);
-      } else {
-        refs[key] = ref(value);
+  async fetchState(id) {
+    if (this.pendingFetch[id]) {
+      return await this.pendingFetch[id];
+    }
+    this.pendingFetch[id] = new Promise(async (resolve) => {
+      const refs = { _id: id };
+      const data = await this.client
+        .getConnection()
+        .getSession()
+        .call("trame.dataclass.state.get", [id]);
+
+      this.dataTypes[id] = data.definition;
+      this.dataStates[id] = {
+        refs,
+        server: JSON.parse(JSON.stringify(data.state)),
+      };
+
+      if (!this.typeDefinitions[data.definition]) {
+        await this.fetchDefinition(data.definition);
       }
-      if (!this.isClientOnly(id, key)) {
-        watch(
-          () => refs[key].value,
-          (v) => this.updateServer(id, key, v),
+
+      for (const [key, value] of Object.entries(data.state)) {
+        // check if nested dataclass
+        if (this.isDataClass(id, key)) {
+          refs[key] = ref(null);
+          await this.handleNestedDataClass(id, key, value);
+        } else {
+          refs[key] = ref(this.wrapValue(id, key, value));
+        }
+        if (!this.isClientOnly(id, key)) {
+          const trigger = this.getTrigger(id, key, refs);
+          watch(refs[key], trigger);
+
+          const items = this.pendingDeepReactives[id] || [];
+          while (items.length) {
+            const [fullKey, r] = items.pop();
+            const trigger = this.getTrigger(id, key, refs);
+            this.deepReactiveWatchers[fullKey] = watch(r, trigger);
+          }
+        }
+      }
+
+      if (this.dataToVue[id]) {
+        this.dataToVue[id].forEach((componentId) => {
+          updateWidget(
+            id,
+            this.dataStates[id],
+            this.vueComponents[componentId],
+          );
+        });
+      }
+      if (this.internalReactiveObjects[id]) {
+        Object.assign(
+          this.internalReactiveObjects[id],
+          this.dataStates[id].refs,
         );
       }
-    }
-
-    if (this.dataToVue[id]) {
-      this.dataToVue[id].forEach((componentId) => {
-        updateWidget(id, this.dataStates[id], this.vueComponents[componentId]);
-      });
-    }
-    if (this.internalReactiveObjects[id]) {
-      Object.assign(this.internalReactiveObjects[id], this.dataStates[id].refs);
-    }
-    return this.dataStates[id];
+      resolve(this.dataStates[id]);
+    });
+    return await this.pendingFetch[id];
   }
 
   async fetchDefinition(id) {
@@ -251,7 +334,19 @@ export class DataclassManager {
       .getSession()
       .call("trame.dataclass.definition.get", [id]);
 
-    this.typeDefinitions[id] = data;
+    this.typeDefinitions[id] = {
+      ...data,
+      dataclass_containers: {},
+      client_only: {},
+      deep_reactive: {},
+    };
+    const toDict = ["dataclass_containers", "client_only", "deep_reactive"];
+    while (toDict.length) {
+      const arrayName = toDict.pop();
+      for (let i = 0; i < data[arrayName].length; i++) {
+        this.typeDefinitions[id][arrayName][data[arrayName][i]] = 1;
+      }
+    }
   }
 
   unlink(dataId, componentId) {

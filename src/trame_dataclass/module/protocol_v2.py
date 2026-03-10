@@ -10,6 +10,7 @@ def compute_definition(trame_dataclass_class):
         "name": trame_dataclass_class.__name__,
         "dataclass_containers": list(trame_dataclass_class.DATACLASS_NAMES),
         "client_only": list(client_only),
+        "deep_reactive": list(trame_dataclass_class.CLIENT_DEEP_REACTIVE),
     }
 
 

@@ -1,7 +1,7 @@
 from trame.app import TrameApp
 from trame.ui.vuetify3 import SinglePageWithDrawerLayout
 from trame.widgets import vuetify3 as v3
-from trame_dataclass.v2 import StateDataModel, Sync, get_instance
+from trame_dataclass.v2 import StateDataModel, Sync, get_instance, watch
 from trame_dataclass.widgets import dataclass
 
 # to enable v3.VTreeview()
@@ -17,10 +17,18 @@ class TreeNode(StateDataModel):
     name = Sync(str, "")
     children = Sync(list["TreeNode"] | None, list, has_dataclass=True)
 
+    @watch("name", "children")
+    def _on_change(self, name, children):
+        print("node", name, children)
+
 
 class RootNode(StateDataModel):
     children = Sync(list[TreeNode], list, has_dataclass=True)
     actives = Sync(list[str], list)
+
+    @watch("actives", "children")
+    def _on_change(self, actives, children):
+        print("root node", actives, children)
 
 
 # ---------------------------------------------------------
@@ -64,8 +72,11 @@ class TreeApp(TrameApp):
 
         if active_node.children is None:
             active_node.children = [node]
+            print("first", active_node.children)
         else:
+            print("before", active_node.children)
             active_node.children = [*active_node.children, node]
+            print("after", active_node.children)
 
         # Make new node active
         self.root_node.actives = [node._id]

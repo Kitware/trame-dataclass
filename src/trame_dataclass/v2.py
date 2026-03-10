@@ -125,7 +125,13 @@ def _save_field(name, src, dst, encoder=None):
 
 def _setup_class_fields(owner):
     # set
-    for key in ["FIELD_NAMES", "DATACLASS_NAMES", "CLIENT_NAMES", "CLIENT_ONLY_NAMES"]:
+    for key in [
+        "FIELD_NAMES",
+        "DATACLASS_NAMES",
+        "CLIENT_NAMES",
+        "CLIENT_ONLY_NAMES",
+        "CLIENT_DEEP_REACTIVE",
+    ]:
         if not hasattr(owner, key):
             setattr(owner, key, set())
     # dict
@@ -479,8 +485,10 @@ class ServerOnly:
         default=None,
         convert: FieldEncoder = None,
         has_dataclass: bool = False,
+        client_deep_reactive: bool = False,
         type_checking: TypeValidation = TypeValidation.WARNING,
     ):
+        self._client_deep_reactive = client_deep_reactive
         self._type_checking = type_checking
         self._type = get_origin(_type) or _type
         if self._type in (Union, types.UnionType):
@@ -547,6 +555,9 @@ class Sync(ServerOnly):
     def __set_name__(self, owner, name):
         _setup_class_fields(owner)
 
+        if self._client_deep_reactive:
+            owner.CLIENT_DEEP_REACTIVE.add(name)
+
         if self._has_dataclass:
             owner.DATACLASS_NAMES.add(name)
 
@@ -562,6 +573,10 @@ class Sync(ServerOnly):
 class ClientOnly(ServerOnly):
     def __set_name__(self, owner, name):
         _setup_class_fields(owner)
+
+        if self._client_deep_reactive:
+            owner.CLIENT_DEEP_REACTIVE.add(name)
+
         self._name = name
         owner.TYPE_CHECKING[name] = self._type_checking
         owner.FIELD_NAMES.add(name)

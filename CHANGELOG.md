@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.6.0 (2026-03-11)
+
+### Features
+
+- **deepReactive**: Add deepReactive client detection
+  ([`0860d6c`](https://github.com/Kitware/trame-dataclass/commit/0860d6c6919243ab06f4ea27039d5c23c6d28489))
+
+
 ## v1.5.3 (2026-03-07)
 
 ### Bug Fixes

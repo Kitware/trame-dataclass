@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.6.1 (2026-03-13)
+
+### Bug Fixes
+
+- **serverState**: Improve cache with circular dep
+  ([`3055977`](https://github.com/Kitware/trame-dataclass/commit/30559776e5c7a425672e8f7bf39b734e926dcc32))
+
+
 ## v1.6.0 (2026-03-11)
 
 ### Features

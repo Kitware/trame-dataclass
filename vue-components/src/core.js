@@ -1,4 +1,4 @@
-import { ref, reactive, watch } from "vue";
+import { ref, reactive, watch, isReactive, toRaw } from "vue";
 
 function updateWidget(id, objectState, widgetState) {
   if (widgetState.data._id !== id) {
@@ -14,8 +14,9 @@ function updateWidget(id, objectState, widgetState) {
 
 function updateServerState(serverState, partialState) {
   for (const [key, value] of Object.entries(partialState)) {
-    serverState[key] = JSON.stringify(value);
+    serverState[key] = JSON.stringify([value]);
   }
+  return serverState;
 }
 
 export class DataclassManager {
@@ -68,8 +69,40 @@ export class DataclassManager {
   }
 
   updateServer(id, name, value) {
-    this.pendingClientServerQueue.push([id, name, JSON.stringify(value)]);
+    if (this.isDataClass(id, name)) {
+      this.pendingClientServerQueue.push([
+        id,
+        name,
+        JSON.stringify([this.serializeDataClass(value)]),
+      ]);
+    } else {
+      this.pendingClientServerQueue.push([id, name, JSON.stringify([value])]);
+    }
     this.flushToServer();
+  }
+
+  serializeDataClass(value) {
+    if (value === null) {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      // array[id...]
+      return value.map((v) => v._id);
+    }
+
+    // dict[str, id] or direct dataclass
+    if (value._id) {
+      // => direct dataclass
+      return value._id;
+    }
+
+    // => dict[str,id]
+    const result = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = v._id;
+    }
+
+    return result;
   }
 
   async flushToServer() {
@@ -81,28 +114,9 @@ export class DataclassManager {
     let sendingSomething = 0;
     while (this.pendingClientServerQueue.length) {
       const [id, name, strValue] = this.pendingClientServerQueue.shift();
-      const value = JSON.parse(strValue);
+      const [value] = JSON.parse(strValue);
       let valueToSend = value;
 
-      // Handle nested dataclass
-      if (value !== null && this.isDataClass(id, name)) {
-        if (Array.isArray(value)) {
-          // array[id...]
-          valueToSend = value.map((v) => v._id);
-        } else {
-          // dict[str, id] or direct dataclass
-          if (value._id) {
-            // => direct dataclass
-            valueToSend = value._id;
-          } else {
-            // => dict[str,id]
-            valueToSend = {};
-            for (const [k, v] in Object.entries(value)) {
-              valueToSend[k] = v._id;
-            }
-          }
-        }
-      }
       if (this.dataStates[id].server[name] === strValue) {
         continue;
       }
@@ -184,7 +198,7 @@ export class DataclassManager {
       }
     } else if (Array.isArray(value)) {
       // array structure
-      const newArray = [];
+      const newArray = this.wrapValue(id, key, []);
       for (let i = 0; i < value.length; i++) {
         const objId = value[i];
         let needUpdate = false;
@@ -234,7 +248,7 @@ export class DataclassManager {
       }
     } else {
       // dict structure
-      const newStruct = reactive({});
+      const newStruct = this.wrapValue(id, key, {});
 
       for (const [k, objId] of Object.entries(value)) {
         if (!this.internalReactiveObjects[objId]) {
@@ -280,7 +294,7 @@ export class DataclassManager {
       this.dataTypes[id] = data.definition;
       this.dataStates[id] = {
         refs,
-        server: JSON.parse(JSON.stringify(data.state)),
+        server: updateServerState({}, data.state),
       };
 
       if (!this.typeDefinitions[data.definition]) {

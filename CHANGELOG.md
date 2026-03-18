@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.6.2 (2026-03-18)
+
+### Bug Fixes
+
+- **typing**: Improve type checking allowing ForwardRef
+  ([`98872ca`](https://github.com/Kitware/trame-dataclass/commit/98872cae4868f2b257f649dd75d26821f93a002b))
+
+
 ## v1.6.1 (2026-03-13)
 
 ### Bug Fixes

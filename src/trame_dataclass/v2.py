@@ -1,13 +1,15 @@
 import asyncio
 import inspect
 import string
+import sys
 import types
 import weakref
 from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Union, get_args, get_origin
+from typing import Any, Callable, ForwardRef, Union, get_args, get_origin
 
+import typing_extensions
 from loguru import logger
 
 from trame_dataclass import module as dataclass_module
@@ -153,6 +155,68 @@ class TypeValidation(Enum):
     STRICT = auto()
     WARNING = auto()
     SKIP = auto()
+
+
+class TypeChecker:
+    def __init__(self, type_def, validation_level: TypeValidation):
+        self._type_def = ForwardRef(type_def) if isinstance(type_def, str) else type_def
+        self._validation = validation_level
+        self._attr_name = None
+
+    @property
+    def type_def(self):
+        if isinstance(self._type_def, ForwardRef):
+            frame = sys._getframe(4)  # Get the caller's frame (module level here)
+            globals_dict, locals_dict = frame.f_globals, frame.f_locals
+            self._type_def = typing_extensions.evaluate_forward_ref(
+                self._type_def,
+                globals=globals_dict,
+                locals=locals_dict,
+            )
+        return self._type_def
+
+    @property
+    def is_union_type(self):
+        return get_origin(self.type_def) is Union or isinstance(
+            self.type_def, types.UnionType
+        )
+
+    @property
+    def union_types(self):
+        return get_args(self.type_def)
+
+    @property
+    def main_type(self):
+        if self.is_union_type:
+            return next(iter(self.union_types))
+        type_validation = self.type_def
+        type_validation = get_origin(type_validation) or type_validation
+        if type_validation in (Union, types.UnionType):
+            type_validation = get_args(type_validation)[0]
+        return get_origin(type_validation) or type_validation
+
+    def name(self, attribute_name):
+        self._attr_name = attribute_name
+        return self
+
+    def validate(self, instance, value):
+        if (
+            self._validation in {TypeValidation.STRICT, TypeValidation.WARNING}
+            and value is not None
+            and not isinstance(value, self.main_type)
+        ):
+            if self.is_union_type:
+                for local_type in self.union_types:
+                    if isinstance(value, local_type):
+                        return
+            elif isinstance(value, self.main_type):
+                return
+
+            msg = f"{self._attr_name} must be {self.type_def} instead of {type(value)} for class {instance.__class__}"
+            if self._validation == TypeValidation.STRICT:
+                raise TypeError(msg)
+
+            logger.warning(msg)
 
 
 class StateDataModel:
@@ -465,6 +529,7 @@ __all__ = [
     "ServerOnly",
     "StateDataModel",
     "Sync",
+    "TypeChecker",
     "TypeValidation",
     "copy",
     "get_instance",
@@ -488,14 +553,9 @@ class ServerOnly:
         client_deep_reactive: bool = False,
         type_checking: TypeValidation = TypeValidation.WARNING,
     ):
+        self._type_checker = TypeChecker(_type, type_checking)
         self._client_deep_reactive = client_deep_reactive
-        self._type_checking = type_checking
-        self._type = get_origin(_type) or _type
-        if self._type in (Union, types.UnionType):
-            self._type = get_args(_type)[0]
-        self._type = get_origin(self._type) or self._type
         self._default = default() if callable(default) else default
-        logger.debug("type {} - default {}", self._type, self._default)
         self._convert = convert
         self._has_dataclass = has_dataclass
 
@@ -503,13 +563,13 @@ class ServerOnly:
             encoder = None
             decoder = None
 
-            if self._type is list:
+            if self._type_checker.main_type is list:
                 encoder = encode_dataclass_list
                 decoder = decode_dataclass_list
-            elif self._type is set:
+            elif self._type_checker.main_type is set:
                 encoder = encode_dataclass_list
                 decoder = decode_dataclass_set
-            elif self._type is dict:
+            elif self._type_checker.main_type is dict:
                 encoder = encode_dataclass_dict
                 decoder = decode_dataclass_dict
             else:
@@ -518,13 +578,13 @@ class ServerOnly:
 
             self._convert = FieldEncoder(encoder, decoder)
 
-        if not self._convert and self._type is set:
+        if not self._convert and self._type_checker.main_type is set:
             self._convert = FieldEncoder(encode_set, decode_set)
 
     def __set_name__(self, owner, name):
         _setup_class_fields(owner)
         self._name = name
-        owner.TYPE_CHECKING[name] = self._type_checking
+        owner.TYPE_CHECKING[name] = self._type_checker.name(name)
         owner.FIELD_NAMES.add(name)
 
     def __get__(self, instance, owner):
@@ -533,18 +593,7 @@ class ServerOnly:
         return instance._server_state.get(self._name)
 
     def __set__(self, instance, value):
-        type_check = instance.TYPE_CHECKING[self._name]
-        if (
-            type_check in {TypeValidation.STRICT, TypeValidation.WARNING}
-            and value is not None
-            and not isinstance(value, self._type)
-        ):
-            msg = f"{self._name} must be {self._type} instead of {type(value)} for class {instance.__class__}"
-            if type_check == TypeValidation.STRICT:
-                raise TypeError(msg)
-
-            logger.warning(msg)
-
+        instance.TYPE_CHECKING[self._name].validate(instance, value)
         if instance._server_state.get(self._name) != value:
             instance._dirty_set.add(self._name)
             instance._server_state[self._name] = value
@@ -565,7 +614,7 @@ class Sync(ServerOnly):
             owner.ENCODERS[name] = self._convert
 
         self._name = name
-        owner.TYPE_CHECKING[name] = self._type_checking
+        owner.TYPE_CHECKING[name] = self._type_checker.name(name)
         owner.FIELD_NAMES.add(name)
         owner.CLIENT_NAMES.add(name)
 
@@ -578,7 +627,7 @@ class ClientOnly(ServerOnly):
             owner.CLIENT_DEEP_REACTIVE.add(name)
 
         self._name = name
-        owner.TYPE_CHECKING[name] = self._type_checking
+        owner.TYPE_CHECKING[name] = self._type_checker.name(name)
         owner.FIELD_NAMES.add(name)
         owner.CLIENT_NAMES.add(name)
         owner.CLIENT_ONLY_NAMES.add(name)

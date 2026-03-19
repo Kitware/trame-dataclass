@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.0.0 (2026-03-19)
+
+### Continuous Integration
+
+- Update precommit
+  ([`7767cce`](https://github.com/Kitware/trame-dataclass/commit/7767cce7db3ba426e18e67dc967f7229c5c6d18a))
+
+### Features
+
+- Dataclass is ready for prime time
+  ([`5af6bc9`](https://github.com/Kitware/trame-dataclass/commit/5af6bc974864bb384b034c696d2d0d29819101bd))
+
+
 ## v1.6.2 (2026-03-18)
 
 ### Bug Fixes

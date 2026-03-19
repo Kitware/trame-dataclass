@@ -1,5 +1,6 @@
-from trame.app import TrameApp
 from trame.ui.html import DivLayout
+
+from trame.app import TrameApp
 from trame.widgets import html
 from trame_dataclass.core import StateDataModel
 

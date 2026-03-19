@@ -5,10 +5,10 @@ import string
 import types
 import warnings
 import weakref
-from collections.abc import Awaitable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 from loguru import logger
 

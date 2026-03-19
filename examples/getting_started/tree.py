@@ -9,9 +9,10 @@
 # ]
 # ///
 
+from trame.ui.vuetify3 import SinglePageWithDrawerLayout
+
 from trame.app import TrameApp
 from trame.app.dataclass import StateDataModel, Sync, get_instance
-from trame.ui.vuetify3 import SinglePageWithDrawerLayout
 from trame.widgets import vuetify3 as v3
 from trame_dataclass.widgets import dataclass
 

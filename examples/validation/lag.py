@@ -15,10 +15,10 @@ import time
 import numpy as np
 import pandas as pd
 import plotly.express as px
-
-from trame.app import TrameApp
 from trame.decorators import change
 from trame.ui.html import DivLayout
+
+from trame.app import TrameApp
 from trame.widgets import client, html, plotly
 from trame_dataclass.v2 import StateDataModel, Sync, watch
 

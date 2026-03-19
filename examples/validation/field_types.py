@@ -2,10 +2,10 @@
 This example is not working yet
 """
 
+from trame.ui.html import DivLayout
 from trame_server.core import Server
 
 from trame.app import TrameApp
-from trame.ui.html import DivLayout
 from trame.widgets import html
 from trame_dataclass.core import (
     ClientOnlyFieldError,

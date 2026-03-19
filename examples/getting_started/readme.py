@@ -11,9 +11,10 @@
 
 from typing import Any
 
+from trame.ui.html import DivLayout
+
 from trame.app import TrameApp
 from trame.app.dataclass import ClientOnly, ServerOnly, StateDataModel, Sync, watch
-from trame.ui.html import DivLayout
 from trame.widgets import dataclass, html
 
 

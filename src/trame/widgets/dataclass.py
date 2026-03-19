@@ -2,6 +2,6 @@ from trame_dataclass.widgets.dataclass import *  # noqa: F403
 
 
 def initialize(server):
-    from trame_dataclass import module
+    from trame_dataclass import module  # noqa: PLC0415
 
     server.enable_module(module)

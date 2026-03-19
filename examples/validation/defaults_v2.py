@@ -1,5 +1,6 @@
-from trame.app import TrameApp
 from trame.ui.html import DivLayout
+
+from trame.app import TrameApp
 from trame.widgets import html, vuetify3
 from trame_dataclass.v2 import StateDataModel, Sync, get_instance
 

@@ -11,9 +11,10 @@
 
 from pathlib import Path
 
+from trame.ui.html import DivLayout
+
 from trame.app import TrameApp
 from trame.app.dataclass import FieldEncoder, StateDataModel, Sync
-from trame.ui.html import DivLayout
 from trame.widgets import html
 
 

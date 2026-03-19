@@ -1,5 +1,6 @@
-from trame.app import TrameApp
 from trame.ui.vuetify3 import SinglePageWithDrawerLayout
+
+from trame.app import TrameApp
 from trame.widgets import vuetify3 as v3
 from trame_dataclass.v2 import StateDataModel, Sync, get_instance, watch
 from trame_dataclass.widgets import dataclass

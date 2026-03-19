@@ -19,12 +19,14 @@ def setup(server, version="v1", **_):
 
 
 def configure_protocol(protocol):
-    from trame_dataclass.module.protocol import TrameDataclassProtocol
+    from trame_dataclass.module.protocol import TrameDataclassProtocol  # noqa: PLC0415
 
     protocol.registerLinkProtocol(TrameDataclassProtocol())
 
 
 def configure_protocol_v2(protocol):
-    from trame_dataclass.module.protocol_v2 import TrameDataclassProtocol
+    from trame_dataclass.module.protocol_v2 import (  # noqa: PLC0415
+        TrameDataclassProtocol,
+    )
 
     protocol.registerLinkProtocol(TrameDataclassProtocol())

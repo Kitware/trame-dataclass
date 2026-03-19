@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from trame.app import TrameApp
 from trame.ui.html import DivLayout
+
+from trame.app import TrameApp
 from trame.widgets import html
 from trame_dataclass.v2 import FieldEncoder, StateDataModel, Sync
 

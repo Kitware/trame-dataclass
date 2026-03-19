@@ -4,16 +4,20 @@ import string
 import sys
 import types
 import weakref
-from collections.abc import Awaitable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, ForwardRef, Union, get_args, get_origin
+from typing import Any, ForwardRef, Union, get_args, get_origin
 
-import typing_extensions
 from loguru import logger
 
 from trame_dataclass import module as dataclass_module
 from trame_dataclass.widgets.dataclass import Provider
+
+try:
+    from typing_extensions import evaluate_forward_ref
+except ModuleNotFoundError:
+    from typing import evaluate_forward_ref
 
 # -----------------------------------------------------------------------------
 # Id generator
@@ -168,7 +172,7 @@ class TypeChecker:
         if isinstance(self._type_def, ForwardRef):
             frame = sys._getframe(4)  # Get the caller's frame (module level here)
             globals_dict, locals_dict = frame.f_globals, frame.f_locals
-            self._type_def = typing_extensions.evaluate_forward_ref(
+            self._type_def = evaluate_forward_ref(
                 self._type_def,
                 globals=globals_dict,
                 locals=locals_dict,
@@ -188,11 +192,14 @@ class TypeChecker:
     @property
     def main_type(self):
         if self.is_union_type:
-            return next(iter(self.union_types))
+            raw_type = next(iter(self.union_types))
+            return get_origin(raw_type) or raw_type
+
         type_validation = self.type_def
         type_validation = get_origin(type_validation) or type_validation
         if type_validation in (Union, types.UnionType):
             type_validation = get_args(type_validation)[0]
+
         return get_origin(type_validation) or type_validation
 
     def name(self, attribute_name):
@@ -207,7 +214,7 @@ class TypeChecker:
         ):
             if self.is_union_type:
                 for local_type in self.union_types:
-                    if isinstance(value, local_type):
+                    if isinstance(value, get_origin(local_type) or local_type):
                         return
             elif isinstance(value, self.main_type):
                 return

@@ -6,13 +6,14 @@ authors = [{ name = "Kitware Inc." }]
 dependencies = [
     "trame_client>=3.10",
     "loguru",
+    "typing_extensions; python_version == '3.13'",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 readme = "README.rst"
 license = { text = "Apache Software License" }
 keywords = ["Python", "Interactive", "Web", "Application", "Framework"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
     "License :: OSI Approved :: Apache Software License",
     "Natural Language :: English",
@@ -23,8 +24,6 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-app = ["pywebview"]
-jupyter = ["jupyterlab"]
 dev = [
     "pre-commit",
     "ruff",
@@ -90,6 +89,7 @@ isort.required-imports = []
 "tests/**" = ["T20"]
 "noxfile.py" = ["T20"]
 "src/**" = ["SIM117"]
+"examples/**" = ["EXE003"]
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]

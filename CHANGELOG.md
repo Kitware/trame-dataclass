@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.0.1 (2026-03-20)
+
+### Bug Fixes
+
+- **v1**: Use same class definition for both v1 and v2
+  ([`c4dcc14`](https://github.com/Kitware/trame-dataclass/commit/c4dcc142f675a9ff35d965d0ba2f3691778e3d62))
+
+### Continuous Integration
+
+- Prevent release on PR
+  ([`f60a0de`](https://github.com/Kitware/trame-dataclass/commit/f60a0de91a3d5f7644727517a5f0f2f5b37694d7))
+
+
 ## v2.0.0 (2026-03-19)
 
 ### Continuous Integration

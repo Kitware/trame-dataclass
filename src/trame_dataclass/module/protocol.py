@@ -14,6 +14,7 @@ def compute_definition(trame_dataclass_class):
             if f.dataclass_container
         ],
         "client_only": list(client_only),
+        "deep_reactive": [],  # not supported in v1
     }
 
 

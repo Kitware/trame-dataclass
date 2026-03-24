@@ -9,7 +9,7 @@ vue_use = ["trame_dataclass"]
 
 
 # Optional if you want to execute custom initialization at module load
-def setup(server, version="v1", **_):
+def setup(server, version="v2", **_):
     """Method called at initialization with possibly some custom keyword arguments"""
 
     if version == "v1":

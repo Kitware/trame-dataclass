@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.0.2 (2026-03-24)
+
+### Bug Fixes
+
+- **module**: Make v2 the new default
+  ([`f9f4bf2`](https://github.com/Kitware/trame-dataclass/commit/f9f4bf228a621371112384f7f6d7e609597e9ee3))
+
+
 ## v2.0.1 (2026-03-20)
 
 ### Bug Fixes

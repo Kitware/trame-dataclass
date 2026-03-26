@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.0.3 (2026-03-26)
+
+### Bug Fixes
+
+- **ForwardRef**: Better handling for unresolved name
+  ([`c1907cc`](https://github.com/Kitware/trame-dataclass/commit/c1907cc5d09de2de84d1fd2157ebc9dc4bc035fe))
+
+
 ## v2.0.2 (2026-03-24)
 
 ### Bug Fixes

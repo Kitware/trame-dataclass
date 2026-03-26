@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import inspect
 import string
 import sys
@@ -146,6 +147,23 @@ def _setup_class_fields(owner):
             setattr(owner, key, {})
 
 
+def check_forward_ref(ref_name):
+    with contextlib.suppress(ValueError):
+        for i in range(5, 15):
+            frame = sys._getframe(i)
+            globals_dict, locals_dict = frame.f_globals, frame.f_locals
+            with contextlib.suppress(NameError):
+                res = evaluate_forward_ref(
+                    ref_name,
+                    globals=globals_dict,
+                    locals=locals_dict,
+                )
+                logger.debug("ForwardRef {} resolved at level {}", ref_name, i)
+                return res
+
+    return None
+
+
 # -----------------------------------------------------------------------------
 # Dataclass builder
 # -----------------------------------------------------------------------------
@@ -170,13 +188,10 @@ class TypeChecker:
     @property
     def type_def(self):
         if isinstance(self._type_def, ForwardRef):
-            frame = sys._getframe(4)  # Get the caller's frame (module level here)
-            globals_dict, locals_dict = frame.f_globals, frame.f_locals
-            self._type_def = evaluate_forward_ref(
-                self._type_def,
-                globals=globals_dict,
-                locals=locals_dict,
-            )
+            eval_type = check_forward_ref(self._type_def)
+            if eval_type is None:
+                return None
+            self._type_def = eval_type
         return self._type_def
 
     @property

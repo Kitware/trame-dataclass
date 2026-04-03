@@ -13,6 +13,9 @@ function updateWidget(id, objectState, widgetState) {
 }
 
 function updateServerState(serverState, partialState) {
+  if (!partialState) {
+    return serverState;
+  }
   for (const [key, value] of Object.entries(partialState)) {
     serverState[key] = JSON.stringify([value]);
   }

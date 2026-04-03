@@ -4,10 +4,10 @@ from .. import module
 
 
 class HtmlElement(AbstractElement):
-    def __init__(self, _elem_name, children=None, **kwargs):
+    def __init__(self, _elem_name, version="v2", children=None, **kwargs):
         super().__init__(_elem_name, children, **kwargs)
         if self.server:
-            self.server.enable_module(module)
+            self.server.enable_module(module, version=version)
 
 
 __all__ = [

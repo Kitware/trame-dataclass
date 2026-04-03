@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from loguru import logger
+
 from trame_dataclass import __version__
 
 serve_path = str(Path(__file__).with_name("serve").resolve())
@@ -11,6 +13,7 @@ vue_use = ["trame_dataclass"]
 # Optional if you want to execute custom initialization at module load
 def setup(server, version="v2", **_):
     """Method called at initialization with possibly some custom keyword arguments"""
+    logger.info("dataclass protocol setup to {}", version)
 
     if version == "v1":
         server.add_protocol_to_configure(configure_protocol)

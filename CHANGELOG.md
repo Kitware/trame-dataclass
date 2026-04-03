@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.0.4 (2026-04-03)
+
+### Bug Fixes
+
+- **version**: Be explicit on which protocol get initialized
+  ([`f3cc356`](https://github.com/Kitware/trame-dataclass/commit/f3cc356c07e1698d7e07cbcda1fc18f414774f99))
+
+
 ## v2.0.3 (2026-03-26)
 
 ### Bug Fixes

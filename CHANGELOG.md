@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.0.5 (2026-04-09)
+
+### Bug Fixes
+
+- **default**: Ensure callable default get evaluated at the instance level
+  ([`6fdaf06`](https://github.com/Kitware/trame-dataclass/commit/6fdaf0693a6810bd7d5a968612d44e2200e97402))
+
+
 ## v2.0.4 (2026-04-03)
 
 ### Bug Fixes

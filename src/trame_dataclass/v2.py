@@ -577,7 +577,7 @@ class ServerOnly:
     ):
         self._type_checker = TypeChecker(_type, type_checking)
         self._client_deep_reactive = client_deep_reactive
-        self._default = default() if callable(default) else default
+        self._default = default
         self._convert = convert
         self._has_dataclass = has_dataclass
 
@@ -611,7 +611,9 @@ class ServerOnly:
 
     def __get__(self, instance, owner):
         if self._name not in instance._server_state:
-            instance._server_state[self._name] = self._default
+            instance._server_state[self._name] = (
+                self._default() if callable(self._default) else self._default
+            )
         return instance._server_state.get(self._name)
 
     def __set__(self, instance, value):

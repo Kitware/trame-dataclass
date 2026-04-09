@@ -92,3 +92,13 @@ def test_get_instance():
     inst = Dummy()
     assert get_instance(inst._id) is inst
     assert get_instance("not an id") is None
+
+
+def test_list():
+    class Node(StateDataModel):
+        children = Sync(list[str], list)
+
+    a = Node()
+    b = Node()
+    a.children.append("something")
+    assert len(b.children) == 0

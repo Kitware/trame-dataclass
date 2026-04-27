@@ -139,12 +139,15 @@ def _setup_class_fields(owner):
         "CLIENT_ONLY_NAMES",
         "CLIENT_DEEP_REACTIVE",
     ]:
-        if not hasattr(owner, key):
-            setattr(owner, key, set())
+        if key not in owner.__dict__:
+            parent_set = getattr(owner, key, set())
+            setattr(owner, key, set(parent_set))
+
     # dict
     for key in ["ENCODERS", "TYPE_CHECKING"]:
-        if not hasattr(owner, key):
-            setattr(owner, key, {})
+        if key not in owner.__dict__:
+            parent_dict = getattr(owner, key, {})
+            setattr(owner, key, dict(parent_dict))
 
 
 def check_forward_ref(ref_name):

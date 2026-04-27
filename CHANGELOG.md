@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.0.6 (2026-04-27)
+
+### Bug Fixes
+
+- **inheritance**: Ensure field inheritance does not mutate parent class
+  ([`9412dcc`](https://github.com/Kitware/trame-dataclass/commit/9412dcc409b3e406ccd535db4d2ec4630bdae3c3))
+
+
 ## v2.0.5 (2026-04-09)
 
 ### Bug Fixes

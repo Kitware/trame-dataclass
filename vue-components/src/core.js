@@ -1,4 +1,4 @@
-import { ref, reactive, watch, isReactive, toRaw } from "vue";
+import { ref, reactive, watch } from "vue";
 
 function updateWidget(id, objectState, widgetState) {
   if (widgetState.data._id !== id) {
@@ -283,6 +283,15 @@ export class DataclassManager {
     return this.triggers[fullKey];
   }
 
+  async getGUITemplate(id) {
+    if (!id) return "";
+    if (!this.dataStates[id]) {
+      await this.fetchState(id);
+    }
+    const definition = this.typeDefinitions[this.dataTypes[id]];
+    return definition?.template || "";
+  }
+
   async fetchState(id) {
     if (this.pendingFetch[id]) {
       return await this.pendingFetch[id];
@@ -352,6 +361,7 @@ export class DataclassManager {
       .call("trame.dataclass.definition.get", [id]);
 
     this.typeDefinitions[id] = {
+      template: `No GUI for dataclass ${id}`,
       ...data,
       dataclass_containers: {},
       client_only: {},

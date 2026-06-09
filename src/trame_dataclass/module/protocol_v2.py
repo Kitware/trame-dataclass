@@ -4,13 +4,15 @@ from wslink.websocket import LinkProtocol
 from trame_dataclass.v2 import StateDataModel, get_instance
 
 
-def compute_definition(trame_dataclass_class):
+def compute_definition(trame_dataclass_class, server_to_use=None):
     client_only = getattr(trame_dataclass_class, "CLIENT_ONLY_NAMES", [])
+
     return {
         "name": trame_dataclass_class.__name__,
         "dataclass_containers": list(trame_dataclass_class.DATACLASS_NAMES),
         "client_only": list(client_only),
         "deep_reactive": list(trame_dataclass_class.CLIENT_DEEP_REACTIVE),
+        "template": trame_dataclass_class.generate_gui(server_to_use),
     }
 
 
@@ -38,7 +40,7 @@ class TrameDataclassProtocol(LinkProtocol):
 
         definition = {
             "id": definition_id,
-            **compute_definition(trame_dataclass_class),
+            **compute_definition(trame_dataclass_class, self.coreServer.server),
         }
         self.class_definitions[trame_dataclass_class] = definition
 

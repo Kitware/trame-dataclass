@@ -11,11 +11,11 @@ class HtmlElement(AbstractElement):
 
 
 __all__ = [
+    "Gui",
     "Provider",
 ]
 
 
-# Expose your vue component(s)
 class Provider(HtmlElement):
     def __init__(self, name, **kwargs):
         super().__init__(
@@ -26,3 +26,12 @@ class Provider(HtmlElement):
         self._attributes["slot"] = (
             f'v-slot="{{ dataclass: {name}, dataclassAvailable: {name}_available }}"'
         )
+
+
+class Gui(HtmlElement):
+    def __init__(self, **kwargs):
+        super().__init__(
+            "trame-dataclass-gui",
+            **kwargs,
+        )
+        self._attr_names += ["instance"]

@@ -2,7 +2,7 @@ import { inject, ref, reactive, watchEffect, onBeforeUnmount } from "vue";
 
 import { DataclassManager } from "../core";
 
-const GLOBAL_DATA_MANAGER = new DataclassManager();
+export const GLOBAL_DATA_MANAGER = new DataclassManager();
 let GLOBAL_VUE_INSTANCE_ID = 1;
 
 export default {

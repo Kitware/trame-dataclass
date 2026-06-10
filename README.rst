@@ -1,4 +1,7 @@
-trame-dataclass
+
+.. |pypi_download| image:: https://img.shields.io/pypi/dm/trame-dataclass
+
+trame-dataclass: a more flexible way to handle state |pypi_download|
 ----------------------------------------
 
 Dataclass for trame UI binding and reactivity handling.

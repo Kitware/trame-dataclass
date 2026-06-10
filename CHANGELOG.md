@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.1.0 (2026-06-10)
+
+### Features
+
+- **gui**: Allow dataclass to embed gui
+  ([`68a1b12`](https://github.com/Kitware/trame-dataclass/commit/68a1b12d98629db7034467c1a52621ad6ac7a00a))
+
+
 ## v2.0.6 (2026-04-27)
 
 ### Bug Fixes

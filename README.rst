@@ -172,6 +172,57 @@ application via ``dataclass.Gui``:
 matching ``generate_gui`` output, making it easy to build detail panels
 for dynamically selected objects.
 
+When the GUI is a fixed layout that does not require Python widget builders,
+a ``TEMPLATE`` class attribute is a simpler alternative.  Set it to a raw
+Vue template string and skip ``generate_gui`` entirely — ``dataclass.Gui``
+picks it up automatically:
+
+.. code-block:: python
+
+    class Person(StateDataModel):
+        first_name = Sync(str, "John")
+        last_name  = Sync(str, "Doe")
+
+        TEMPLATE = """
+          <VCard class="ma-4" v-if="self_available && self._id">
+            <VContainer>
+              <VRow>
+                <VCol>
+                  <VTextField v-model="self.first_name" label="First Name" />
+                </VCol>
+                <VCol>
+                  <VTextField v-model="self.last_name" label="Last Name" />
+                </VCol>
+              </VRow>
+            </VContainer>
+          </VCard>
+        """
+
+    # In your application UI (identical to the generate_gui approach):
+    dataclass.Gui(instance=("selected?.[0]",))
+
+Inside both ``TEMPLATE`` and ``generate_gui``, the dataclass instance is
+available as ``self`` and ``self_available`` is a boolean that is ``true``
+only when a valid instance is bound.  Use ``v-if="self_available && self._id"``
+to guard content that should only render when an instance is selected.
+
+.. list-table:: Choosing between the two approaches
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Need
+     - ``TEMPLATE``
+     - ``generate_gui``
+   * - Pure HTML / Vue markup
+     - Simpler
+     - Works
+   * - Python widget builders (e.g. Vuetify helpers)
+     - Not applicable
+     - Required
+   * - Dynamic widget construction at class definition time
+     - Not applicable
+     - Required
+
 Usage example
 ----------------------------------------
 

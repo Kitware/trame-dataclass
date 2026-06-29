@@ -294,7 +294,7 @@ class StateDataModel:
     @classmethod
     def generate_gui(cls, trame_server=None) -> str:  # noqa: ARG003
         """Override to provide GUI for given dataclass type"""
-        return ""
+        return getattr(cls, "TEMPLATE", "")
 
     def _register_server(self, **_):
         self.server.protocol_call("trame.dataclass.register", self)

@@ -2,6 +2,34 @@
 
 <!-- version list -->
 
+## v2.1.1 (2026-06-29)
+
+### Bug Fixes
+
+- **gui**: Enable template string option
+  ([`ceb731f`](https://github.com/Kitware/trame-dataclass/commit/ceb731f59d6de76f78e6131d5eddf3c4df08c61b))
+
+### Documentation
+
+- Update README.rst
+  ([`ab2b107`](https://github.com/Kitware/trame-dataclass/commit/ab2b1071286a6eef65bc4da1a7c521da274f1319))
+
+- **README**: Improve readme
+  ([`86e73fe`](https://github.com/Kitware/trame-dataclass/commit/86e73fe1c1b5583af06687c0b56687dfdd5861db))
+
+- **README**: Improve readme
+  ([`8ee136a`](https://github.com/Kitware/trame-dataclass/commit/8ee136afb4a2d941895907b7c82232daf118c635))
+
+- **README**: Improve readme
+  ([`fd2ec3b`](https://github.com/Kitware/trame-dataclass/commit/fd2ec3b55173933e1797f1c6bd7e2de0060ba059))
+
+- **README**: Improve readme
+  ([`08adbd3`](https://github.com/Kitware/trame-dataclass/commit/08adbd364232336828e5e246ad65df481c4a2b4c))
+
+- **README**: Improve readme
+  ([`4048339`](https://github.com/Kitware/trame-dataclass/commit/40483392f864c4c8b537fed8ea88864c1f32f272))
+
+
 ## v2.1.0 (2026-06-10)
 
 ### Features

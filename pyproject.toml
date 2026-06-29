@@ -1,6 +1,6 @@
 [project]
 name = "trame-dataclass"
-version = "2.1.0"
+version = "2.1.1"
 description = "Dataclass for trame UI binding"
 authors = [{ name = "Kitware Inc." }]
 dependencies = [
@@ -33,6 +33,7 @@ dev = [
     "nox",
     "trame",
 ]
+
 
 
 [build-system]

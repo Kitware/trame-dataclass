@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.1.2 (2026-06-29)
+
+### Bug Fixes
+
+- **doc**: Add docstring
+  ([`1617363`](https://github.com/Kitware/trame-dataclass/commit/161736363bf2b68a6b7d4c85cdff6f77cf613fcb))
+
+### Documentation
+
+- **getting_started**: Add documentation content
+  ([`40eb4b0`](https://github.com/Kitware/trame-dataclass/commit/40eb4b085fe9455ff47bb5a377e17daaa60da52a))
+
+
 ## v2.1.1 (2026-06-29)
 
 ### Bug Fixes

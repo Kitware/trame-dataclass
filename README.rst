@@ -68,7 +68,7 @@ Reactivity
 
 Two complementary ways to react to field changes:
 
-**``@watch`` decorator** — defined inside the class; fires on the server
+**Decorator ``@watch``** — defined inside the class; fires on the server
 whenever any of the named fields change:
 
 .. code-block:: python
@@ -77,7 +77,7 @@ whenever any of the named fields change:
     def _update_derived(self, age):
         self.derived_value = 80 - age
 
-**``.watch()`` method** — registers a callback externally at runtime and
+**Method ``.watch()``** — registers a callback externally at runtime and
 returns an *unwatch* callable:
 
 .. code-block:: python

@@ -81,23 +81,23 @@ WatcherCallback = Callable[[Any], None | Awaitable[None]]
 
 
 class NonSerializableType(ValueError):
-    pass
+    """Raised when a field type cannot be serialized to JSON for client transport."""
 
 
 class InvalidDefaultForType(ValueError):
-    pass
+    """Raised when no sensible default value can be inferred for a given type annotation."""
 
 
 class NoServerLinked(ValueError):
-    pass
+    """Raised when a server-bound operation is attempted on an instance with no server attached."""
 
 
 class WatcherExecution(Exception):
-    pass
+    """Raised when an async watcher callback raises an unhandled exception."""
 
 
 class ClientOnlyFieldError(Exception):
-    pass
+    """Raised when server-side code attempts to read a CLIENT_ONLY field."""
 
 
 # -----------------------------------------------------------------------------

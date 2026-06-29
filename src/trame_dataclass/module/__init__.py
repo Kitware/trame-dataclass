@@ -22,12 +22,14 @@ def setup(server, version="v2", **_):
 
 
 def configure_protocol(protocol):
+    """Register the v1 dataclass WebSocket protocol with the given wslink protocol."""
     from trame_dataclass.module.protocol import TrameDataclassProtocol  # noqa: PLC0415
 
     protocol.registerLinkProtocol(TrameDataclassProtocol())
 
 
 def configure_protocol_v2(protocol):
+    """Register the v2 dataclass WebSocket protocol with the given wslink protocol."""
     from trame_dataclass.module.protocol_v2 import (  # noqa: PLC0415
         TrameDataclassProtocol,
     )

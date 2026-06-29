@@ -5,6 +5,11 @@ from trame_dataclass.v2 import StateDataModel, get_instance
 
 
 def compute_definition(trame_dataclass_class, server_to_use=None):
+    """Build the class definition dict sent to the client when a model is registered.
+
+    The dict includes the class name, lists of dataclass-container fields, client-only
+    fields, deep-reactive fields, and the auto-generated GUI template string.
+    """
     client_only = getattr(trame_dataclass_class, "CLIENT_ONLY_NAMES", [])
 
     return {
@@ -17,6 +22,13 @@ def compute_definition(trame_dataclass_class, server_to_use=None):
 
 
 class TrameDataclassProtocol(LinkProtocol):
+    """wslink protocol that exposes the trame-dataclass RPC endpoints to the client.
+
+    Tracks registered class definitions (shared across instances of the same class) and
+    wires each ``StateDataModel`` instance to push state deltas over the WebSocket when
+    its fields change.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.class_definitions = {}
@@ -24,11 +36,13 @@ class TrameDataclassProtocol(LinkProtocol):
 
     @export_rpc("trame.dataclass.register")
     def register_instance(self, trame_dataclass):
+        """Register a model instance: ensure its class definition exists and wire up flushing."""
         if isinstance(trame_dataclass, StateDataModel):
             self.register_definition(trame_dataclass.__class__)
             trame_dataclass.register_flush_implementation(self.push_delta)
 
     def register_definition(self, trame_dataclass_class):
+        """Register a model class definition, returning the existing one if already known."""
         if not issubclass(trame_dataclass_class, StateDataModel):
             return None
 
@@ -48,6 +62,7 @@ class TrameDataclassProtocol(LinkProtocol):
 
     @export_rpc("trame.dataclass.definition.get")
     def get_definition(self, class_id):
+        """Return the class definition dict for the given numeric class ID."""
         for definition in self.class_definitions.values():
             if definition["id"] == class_id:
                 return definition
@@ -77,10 +92,15 @@ class TrameDataclassProtocol(LinkProtocol):
 
     @export_rpc("trame.dataclass.state.update")
     def update_state(self, msg):
+        """Apply a client-originated partial state update to the matching server instances.
+
+        *msg* maps instance IDs to partial state dicts.
+        """
         for dc_id, state in msg.items():
             obj = get_instance(dc_id)
             if obj is not None:
                 obj.update_from_client_state(state)
 
     def push_delta(self, msg):
+        """Publish a state delta to all connected clients via the ``trame.dataclass.publish`` topic."""
         self.publish("trame.dataclass.publish", msg)

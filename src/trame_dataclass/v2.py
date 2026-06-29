@@ -55,7 +55,7 @@ WatcherCallback = Callable[[Any], None | Awaitable[None]]
 
 
 class WatcherExecution(Exception):
-    pass
+    """Raised when an async watcher callback raises an unhandled exception."""
 
 
 # -----------------------------------------------------------------------------
@@ -171,18 +171,37 @@ def check_forward_ref(ref_name):
 # Dataclass builder
 # -----------------------------------------------------------------------------
 class FieldEncoder:
+    """Pair of encoder/decoder callables for a field that requires custom serialization.
+
+    The encoder converts the Python value to a JSON-serializable form for client transport;
+    the decoder reconstructs the Python value from the received JSON data.
+    """
+
     def __init__(self, encoder, decoder):
         self.encoder = encoder
         self.decoder = decoder
 
 
 class TypeValidation(Enum):
+    """Controls how type mismatches are handled when a field value is set.
+
+    - ``STRICT``: raises ``TypeError`` immediately on mismatch.
+    - ``WARNING``: logs a warning but allows the assignment.
+    - ``SKIP``: performs no type checking.
+    """
+
     STRICT = auto()
     WARNING = auto()
     SKIP = auto()
 
 
 class TypeChecker:
+    """Validates field values against a declared type annotation at assignment time.
+
+    Supports plain types, generic aliases (e.g. ``list[int]``), union types, and
+    forward references (string annotations resolved lazily from the call-stack frame).
+    """
+
     def __init__(self, type_def, validation_level: TypeValidation):
         self._type_def = ForwardRef(type_def) if isinstance(type_def, str) else type_def
         self._validation = validation_level
@@ -190,6 +209,7 @@ class TypeChecker:
 
     @property
     def type_def(self):
+        """Resolved type definition; evaluates ``ForwardRef`` lazily on first access."""
         if isinstance(self._type_def, ForwardRef):
             eval_type = check_forward_ref(self._type_def)
             if eval_type is None:
@@ -199,16 +219,19 @@ class TypeChecker:
 
     @property
     def is_union_type(self):
+        """Return ``True`` when the declared type is a union (e.g. ``int | None``)."""
         return get_origin(self.type_def) is Union or isinstance(
             self.type_def, types.UnionType
         )
 
     @property
     def union_types(self):
+        """Return the individual types that form a union annotation."""
         return get_args(self.type_def)
 
     @property
     def main_type(self):
+        """Return the primary (non-None) concrete type used for ``isinstance`` checks."""
         if self.is_union_type:
             raw_type = next(iter(self.union_types))
             return get_origin(raw_type) or raw_type
@@ -221,10 +244,12 @@ class TypeChecker:
         return get_origin(type_validation) or type_validation
 
     def name(self, attribute_name):
+        """Attach the attribute name used in error/warning messages; returns ``self``."""
         self._attr_name = attribute_name
         return self
 
     def validate(self, instance, value):
+        """Check *value* against the declared type; raise or warn per the validation level."""
         if (
             self._validation in {TypeValidation.STRICT, TypeValidation.WARNING}
             and value is not None
@@ -245,7 +270,32 @@ class TypeChecker:
 
 
 class StateDataModel:
+    """Base class for reactive data models that synchronize state between server and client.
+
+    Declare fields as class-level descriptors (``Sync``, ``ServerOnly``, ``ClientOnly``) to
+    define which data is shared and in which direction.  When a field value changes the model
+    automatically schedules a flush to push the delta to all connected clients.
+
+    Example::
+
+        class MyModel(StateDataModel):
+            count: int = Sync(int, default=0)
+            label: str = Sync(str, default="")
+
+        model = MyModel(trame_server=server)
+        model.count = 42  # triggers async push to client
+    """
+
     def __init__(self, trame_server=None, enable_collaboration=False, **kwargs):
+        """Initialize the model, apply defaults, and register with the server if provided.
+
+        Args:
+            trame_server: trame server instance to register this model with.
+            enable_collaboration: when ``True``, incoming client edits are not stored in
+                ``_client_state`` before being decoded, allowing multi-user collaboration
+                scenarios where the authoritative state lives elsewhere.
+            **kwargs: initial field values applied via :meth:`update`.
+        """
         self.__id = _next_id()
         self.__trame_server = trame_server
 
@@ -293,16 +343,26 @@ class StateDataModel:
 
     @classmethod
     def generate_gui(cls, trame_server=None) -> str:  # noqa: ARG003
-        """Override to provide GUI for given dataclass type"""
+        """Return the Vue template string for this model's auto-generated GUI.
+
+        Override in a subclass to produce a dynamic template (e.g. one that
+        depends on server-side configuration).  The default implementation
+        returns the class-level ``TEMPLATE`` attribute, or an empty string.
+        """
         return getattr(cls, "TEMPLATE", "")
 
     def _register_server(self, **_):
         self.server.protocol_call("trame.dataclass.register", self)
 
     def register_flush_implementation(self, push_function):
+        """Set the low-level callable used to push state deltas to the client.
+
+        Called automatically by the protocol layer; should not be needed in application code.
+        """
         self._flush_impl = push_function
 
     def update(self, **kwargs):
+        """Set multiple fields at once; silently ignores keys that are not declared fields."""
         for key in self.FIELD_NAMES & set(kwargs.keys()):
             setattr(self, key, kwargs[key])
 
@@ -352,12 +412,15 @@ class StateDataModel:
             self._pending_task.add_done_callback(handle_task_result)
 
     def clear_watchers(self):
+        """Remove all registered watcher callbacks from this instance."""
         self._watchers.clear()
 
     def new_instance(self):
+        """Create a new, independent instance of the same model class using the same server."""
         return self.__class__(trame_server=self.server)
 
     async def completion(self):
+        """Await until all in-flight async flush/watcher tasks have finished."""
         while self._pending_task is not None:
             await self._pending_task
 
@@ -405,6 +468,7 @@ class StateDataModel:
 
     @property
     def server(self):
+        """The trame server this model is registered with, or ``None`` if unbound."""
         return self.__trame_server
 
     @server.setter
@@ -417,6 +481,11 @@ class StateDataModel:
 
     @property
     def client_state(self):
+        """Return the full JSON-serializable state dict sent to the client.
+
+        Applies any registered encoders and ensures all ``CLIENT_NAMES`` fields are
+        populated, including ones that were dirtied since the last flush.
+        """
         # Make sure the client_state is fully filled
         dirty = set(self._dirty_set)
         for name in self.CLIENT_NAMES:
@@ -430,6 +499,12 @@ class StateDataModel:
         return self._client_state
 
     def update_from_client_state(self, partial_state):
+        """Apply a partial state dict received from the client back to server-side fields.
+
+        Decodes values using registered decoders before assignment.  When collaboration
+        mode is disabled the raw client values are also cached in ``_client_state`` to
+        avoid a spurious round-trip on the next flush.
+        """
         encoders = self.ENCODERS
         for k, v in partial_state.items():
             if not self._enable_collaboration:
@@ -446,12 +521,23 @@ class StateDataModel:
         return self.__id
 
     def dirty(self, *keys):
-        """Mark variable dirty and trigger watchers"""
+        """Mark one or more fields as dirty and immediately trigger watchers and a flush.
+
+        Useful when a mutable field (e.g. a list or dict) is mutated in-place and the
+        descriptor's ``__set__`` is never called, so the change would otherwise go unnoticed.
+        """
         self._dirty_set.update(keys)
         self._on_dirty()
 
     def flush(self, dirty_set: set[str] | None = None, force_push=False):
-        """Flush the data to the client."""
+        """Push pending state changes to the client over the network.
+
+        Args:
+            dirty_set: explicit set of field names to flush; defaults to the current
+                internal dirty set and clears it afterwards.
+            force_push: when ``True``, re-sends all fields in *dirty_set* even if their
+                encoded value has not changed since the last flush.
+        """
         if self._flush_impl is None:
             return
 
@@ -568,12 +654,33 @@ __all__ = [
 
 
 def get_instance(instance_id: str):
+    """Return the live ``StateDataModel`` instance for the given ID, or ``None`` if collected.
+
+    IDs are short-lived: once the Python object is garbage-collected the ID becomes invalid.
+    This function is primarily used by decoders that receive an ID from the client.
+    """
     # print(f"get_instance({instance_id})")
     # print(" => ", INSTANCES[instance_id])
     return INSTANCES.get(instance_id)
 
 
 class ServerOnly:
+    """Descriptor for a field that exists only on the server (never sent to the client).
+
+    Use this for derived values, configuration, or heavyweight objects that should
+    not be serialized.  The field participates in watchers but is excluded from any synchronization.
+
+    Args:
+        _type: the Python type annotation (used for type-checking).
+        default: default value or zero-argument callable returning the default.
+        convert: optional :class:`FieldEncoder` for custom serialization (rarely needed
+            for server-only fields).
+        has_dataclass: ``True`` when the value holds a :class:`StateDataModel` instance
+            or a container of them; automatically sets up the appropriate encoder/decoder.
+        client_deep_reactive: reserved for subclass ``Sync`` — ignored here.
+        type_checking: how type mismatches are reported (default: ``WARNING``).
+    """
+
     def __init__(
         self,
         _type,
@@ -633,6 +740,12 @@ class ServerOnly:
 
 
 class Sync(ServerOnly):
+    """Descriptor for a field that is synchronized between server and client in both directions.
+
+    Set ``client_deep_reactive=True`` when the value is a nested object that the client
+    template needs to observe at a property level (e.g. a reactive list of objects).
+    """
+
     def __set_name__(self, owner, name):
         _setup_class_fields(owner)
 
@@ -652,6 +765,18 @@ class Sync(ServerOnly):
 
 
 class ClientOnly(ServerOnly):
+    """Descriptor for a field that is synchronized from server to client only.
+
+    The server can read and write the field, and changes are pushed to the client.
+    Client-side edits are intentionally not propagated back to the server.
+
+    Use this when client-side reactivity is needed but the server does not need to be
+    kept in sync — e.g. fast-paced updates like mouse location tracking for local
+    tooltip positioning.
+
+    Inherits all constructor parameters from :class:`ServerOnly`.
+    """
+
     def __set_name__(self, owner, name):
         _setup_class_fields(owner)
 
@@ -666,7 +791,20 @@ class ClientOnly(ServerOnly):
 
 
 def watch(*args, **kwargs):
-    """Method decorator to watch state change"""
+    """Method decorator that registers the decorated method as a field watcher.
+
+    Pass the field name(s) to observe as positional arguments.  Additional keyword
+    arguments (``sync``, ``eager``) are forwarded to :meth:`~StateDataModel.watch`.
+
+    Example::
+
+        class MyModel(StateDataModel):
+            count = Sync(int, default=0)
+
+            @watch("count")
+            def on_count_change(self, count):
+                print(f"count changed to {count}")
+    """
 
     def decorate(f):
         f._watch = (tuple(args), kwargs)
@@ -676,5 +814,6 @@ def watch(*args, **kwargs):
 
 
 def copy(src, dst, *keys):
+    """Copy the values of the given field names from *src* to *dst*."""
     for key in keys:
         setattr(dst, key, getattr(src, key))

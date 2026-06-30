@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v2.1.3 (2026-06-30)
+
+### Bug Fixes
+
+- **gui**: Better handling of instance switch
+  ([`4288317`](https://github.com/Kitware/trame-dataclass/commit/4288317a91e0b686dc13800e31add41e640c6572))
+
+- **Provider**: Better control slot availability based on data
+  ([`b0e2f6d`](https://github.com/Kitware/trame-dataclass/commit/b0e2f6da0c48e1a199011ab6e09bad6699994226))
+
+
 ## v2.1.2 (2026-06-29)
 
 ### Bug Fixes

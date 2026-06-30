@@ -10,22 +10,23 @@ export default {
     GLOBAL_DATA_MANAGER.connect(trame.client);
 
     watchEffect(async () => {
+      innerTemplate.value = "";
       if (!props.instance) {
-        innerTemplate.value = "";
         return;
       }
       innerTemplate.value = await GLOBAL_DATA_MANAGER.getGUITemplate(
-        props.instance,
+        `${props.instance}`,
       );
     });
 
     const DataClassGUI = computed(() => {
+      const templateValue = innerTemplate.value;
       if (props.instance) {
         return {
           setup,
           template: `
             <trame-dataclass instance="${props.instance}" v-slot="{ dataclass: self, dataclassAvailable: self_available }">
-              ${innerTemplate.value}
+              ${templateValue}
             </trame-dataclass>
           `,
         };

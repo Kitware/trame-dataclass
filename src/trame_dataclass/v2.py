@@ -456,15 +456,16 @@ class StateDataModel:
 
         return unwatch
 
-    def provide_as(self, name) -> Provider:
+    def provide_as(self, name, always=False) -> Provider:
         """Register a data provider to be used by the client.
 
         Args:
             name (str): Name of the data variable that will be available within the nested scope.
+            always (bool): Set it to true if you want the template to always be displayed even if the data is not fully loaded.
         Returns:
             widget: instance of the widget to put within your UI definition."""
         instance = (f"'{self._id}'",)
-        return Provider(name=name, instance=instance)
+        return Provider(name=name, instance=instance, always=always)
 
     @property
     def server(self):

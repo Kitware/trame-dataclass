@@ -51,12 +51,13 @@ class Provider(HtmlElement):
         name: Vue slot variable name under which the dataclass instance is exposed.
         **kwargs: additional element attributes, notably ``instance`` when binding to
             a reactive state variable instead of a fixed model.
+            ``always`` can be provided and set to True when you want to always display the template even when data is not available.
         """
         super().__init__(
             "trame-dataclass",
             **kwargs,
         )
-        self._attr_names += ["instance"]
+        self._attr_names += ["instance", "always"]
         self._attributes["slot"] = (
             f'v-slot="{{ dataclass: {name}, dataclassAvailable: {name}_available }}"'
         )

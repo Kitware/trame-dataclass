@@ -384,7 +384,7 @@ export class DataclassManager {
     }
   }
 
-  link(dataId, componentId) {
+  async link(dataId, componentId) {
     if (!this.dataToVue[dataId]) {
       this.dataToVue[dataId] = [componentId];
     } else {
@@ -393,22 +393,26 @@ export class DataclassManager {
 
     // Put initial state
     if (!this.dataStates[dataId]) {
-      this.fetchState(dataId);
-    } else {
-      updateWidget(
-        dataId,
-        this.dataStates[dataId],
-        this.vueComponents[componentId],
-      );
+      await this.fetchState(dataId);
     }
+
+    updateWidget(
+      dataId,
+      this.dataStates[dataId],
+      this.vueComponents[componentId],
+    );
   }
 
-  connectVueComponent(componentId, internals) {
+  async connectVueComponent(componentId, internals) {
     const prevDataId = this.vueComponents[componentId]?.id;
     const newDataId = internals.id;
+    if (prevDataId === newDataId) {
+      return false;
+    }
     this.unlink(prevDataId, componentId);
     this.vueComponents[componentId] = internals;
-    this.link(newDataId, componentId);
+    await this.link(newDataId, componentId);
+    return true;
   }
 
   disconnectVueComponent(componentId) {

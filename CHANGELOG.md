@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.2.0 (2026-09-09)
+
+### Features
+
+- **react**: Add support for react client
+  ([`900fa52`](https://github.com/Kitware/trame-dataclass/commit/900fa52a9ef54f68ed44fc41352e740c3cc82d54))
+
+
 ## v2.1.3 (2026-06-30)
 
 ### Bug Fixes

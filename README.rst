@@ -1,7 +1,7 @@
 
 .. |pypi_version| image:: https://img.shields.io/pypi/v/trame-dataclass
    :target: https://pypi.org/project/trame-dataclass/
-.. |pypi_download| image:: https://img.shields.io/pypi/dm/trame-dataclass
+.. |pypi_download| image:: https://kitware.github.io/trame/downloads/trame-dataclass.svg
 .. |python_version| image:: https://img.shields.io/pypi/pyversions/trame-dataclass
 .. |license| image:: https://img.shields.io/pypi/l/trame-dataclass
 

@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.2.1 (2026-09-22)
+
+### Bug Fixes
+
+- **logger**: Disable it by default
+  ([`c62c113`](https://github.com/Kitware/trame-dataclass/commit/c62c11360bdf2276363dfa8ddef9cefd89bb7bf1))
+
+### Documentation
+
+- Update download badge url
+  ([`560152f`](https://github.com/Kitware/trame-dataclass/commit/560152f59eed44509651e860cc2569e376f8ed8c))
+
+
 ## v2.2.0 (2026-09-09)
 
 ### Features

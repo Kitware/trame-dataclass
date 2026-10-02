@@ -38,6 +38,8 @@ export class DataclassManager {
     this.deepReactiveWatchers = {};
     this.pendingDeepReactives = {};
     this.pendingFetch = {};
+    this.pendingPublications = {};
+    this.revisions = {};
   }
 
   connect(client) {
@@ -47,28 +49,53 @@ export class DataclassManager {
     this.subscription = client
       .getConnection()
       .getSession()
-      .subscribe("trame.dataclass.publish", async ([event]) => {
-        const { id, state } = event;
-        if (!this.dataStates[id]) {
-          await this.fetchState(id);
-          return;
-        }
+      .subscribe("trame.dataclass.publish", ([event]) =>
+        this.enqueuePublication(event),
+      );
+  }
 
-        // Capture server state for update comparison
-        updateServerState(this.dataStates[id].server, state);
+  enqueuePublication(event) {
+    const { id } = event;
+    // Capture discovery now, before a promise callback can let a later message
+    // mistake the same instance for another first publication.
+    const discovery = !this.pendingFetch[id] && !this.dataStates[id];
+    const hydration = this.fetchState(id);
+    const previous = this.pendingPublications[id] || Promise.resolve();
+    const next = previous.then(async () => {
+      await hydration;
+      const { state, revision } = event;
+      if (revision === undefined) {
+        // The v1 protocol, which also uses this client, does not carry revisions.
+        // Its discovery publication precedes the state request and is already
+        // represented by that reply.
+        if (discovery) return;
+      } else if (revision <= this.revisions[id]) {
+        return;
+      }
 
-        for (const [key, value] of Object.entries(state)) {
-          if (this.isDataClass(id, key)) {
-            await this.handleNestedDataClass(id, key, value);
-          } else {
-            this.dataStates[id].refs[key].value = this.wrapValue(
-              id,
-              key,
-              value,
-            );
-          }
+      // A whole asynchronous publication owns the instance until nested fetches
+      // finish. No newer callback can overwrite its cache and then be rolled back.
+      updateServerState(this.dataStates[id].server, state);
+      for (const [key, value] of Object.entries(state)) {
+        if (this.isDataClass(id, key)) {
+          await this.handleNestedDataClass(id, key, value);
+        } else {
+          this.dataStates[id].refs[key].value = this.wrapValue(id, key, value);
         }
-      });
+      }
+      this.revisions[id] = revision;
+    });
+    // A failed update is reported, but cannot poison all future queue entries.
+    const settled = next.catch((error) => {
+      console.error(`Dataclass publication failed for ${id}`, error);
+    });
+    this.pendingPublications[id] = settled;
+    settled.then(() => {
+      if (this.pendingPublications[id] === settled) {
+        delete this.pendingPublications[id];
+      }
+    });
+    return settled;
   }
 
   updateServer(id, name, value) {
@@ -296,7 +323,7 @@ export class DataclassManager {
     if (this.pendingFetch[id]) {
       return await this.pendingFetch[id];
     }
-    this.pendingFetch[id] = new Promise(async (resolve) => {
+    this.pendingFetch[id] = (async () => {
       const refs = { _id: id };
       const data = await this.client
         .getConnection()
@@ -349,8 +376,9 @@ export class DataclassManager {
           this.dataStates[id].refs,
         );
       }
-      resolve(this.dataStates[id]);
-    });
+      this.revisions[id] = data.revision;
+      return this.dataStates[id];
+    })();
     return await this.pendingFetch[id];
   }
 

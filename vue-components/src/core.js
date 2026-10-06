@@ -38,6 +38,7 @@ export class DataclassManager {
     this.deepReactiveWatchers = {};
     this.pendingDeepReactives = {};
     this.pendingFetch = {};
+    this.pendingDefinition = {};
     this.pendingPublications = {};
     this.revisions = {};
   }
@@ -383,6 +384,24 @@ export class DataclassManager {
   }
 
   async fetchDefinition(id) {
+    // `typeDefinitions[id]` is only set once the reply lands, so every instance of a
+    // class hydrating at the same time saw it missing and asked again: a wave of N
+    // instances of one class cost N definition requests. Share the in-flight promise.
+    if (this.pendingDefinition[id]) {
+      return await this.pendingDefinition[id];
+    }
+    const pending = this.callDefinition(id).catch((error) => {
+      // Conditional, so a failure cannot evict a request that replaced it.
+      if (this.pendingDefinition[id] === pending) {
+        delete this.pendingDefinition[id];
+      }
+      throw error;
+    });
+    this.pendingDefinition[id] = pending;
+    return await pending;
+  }
+
+  async callDefinition(id) {
     const data = await this.client
       .getConnection()
       .getSession()

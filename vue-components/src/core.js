@@ -391,10 +391,13 @@ export class DataclassManager {
       this.dataToVue[dataId].push(componentId);
     }
 
-    // Put initial state
-    if (!this.dataStates[dataId]) {
-      await this.fetchState(dataId);
-    }
+    // Put initial state. Await COMPLETION rather than testing the allocation:
+    // `dataStates[id]` is created as soon as the state reply lands, before the class
+    // definition and the nested refs are filled in, so a component that links during
+    // that window used to be handed an instance whose fields are still undefined.
+    // Serial hydration made the window hard to reach; starting a wave together makes
+    // it ordinary. `fetchState` deduplicates, so this is a wait, not a request.
+    await this.fetchState(dataId);
 
     updateWidget(
       dataId,

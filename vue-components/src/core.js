@@ -293,6 +293,30 @@ export class DataclassManager {
     return definition?.template || "";
   }
 
+  // Start every one of these hydrating now, and resolve once all of them are done.
+  //
+  // Providers nest, and a provider's slot waits for its own instance, so provider N+1
+  // is not created until provider N's reply has landed: N of them cost N round trips
+  // END TO END rather than N requests in flight. Asking for them all up front leaves
+  // each provider to find its own hydration already under way.
+  //
+  // This reuses `fetchState`, so each id is still completed over its whole graph, the
+  // requests underneath are still deduplicated, and nothing is batched.
+  //
+  // `allSettled`, not `all`: one instance that is gone or refused must not take the
+  // rest of the wave with it. The caller is told which ids are ready.
+  async prefetch(ids) {
+    const settled = await Promise.allSettled(
+      ids.map((id) => this.fetchState(id)),
+    );
+    return ids.map((id, index) => ({
+      id,
+      ready: settled[index].status === "fulfilled",
+      error:
+        settled[index].status === "rejected" ? settled[index].reason : null,
+    }));
+  }
+
   async fetchState(id) {
     if (this.pendingFetch[id]) {
       return await this.pendingFetch[id];

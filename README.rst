@@ -115,6 +115,20 @@ a state variable — use ``dataclass.Provider`` directly:
 ``instance`` accepts a trame expression tuple; the second element is the
 default when the state variable is unset.
 
+Providers that nest hydrate one after another, because each one only shows
+its slot once its own instance has arrived.  ``dataclass.Prefetch`` asks the
+client for a whole set of ids at once, so each provider inside finds its own
+hydration already in flight:
+
+.. code-block:: python
+
+    with dataclass.Prefetch(instances=[model._id for model in models]):
+        with models[0].provide_as("settings"), models[1].provide_as("scene"):
+            html.Div("{{ settings.title }} / {{ scene.name }}")
+
+It is a warm-up, not a barrier: the slot renders immediately and every
+provider inside keeps gating its own subtree.
+
 Composed dataclasses
 ----------------------------------------
 

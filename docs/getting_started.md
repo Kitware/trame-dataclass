@@ -544,6 +544,33 @@ with dcw.Provider(name="active_node", instance=("tree.actives?.[0]",)):
     ...
 ```
 
+### `Prefetch` Widget — warming a whole page of instances
+
+A `Provider` only shows its slot once its own instance has arrived, so providers
+that nest hydrate strictly one after another: the second one is not created
+until the first one's state has landed, the third waits for the second, and a
+page with many of them pays that chain end to end rather than making its
+requests in parallel.
+
+Wrap them in a `Prefetch` to ask the client for every id at once:
+
+```python
+from trame.widgets import dataclass as dcw
+
+with dcw.Prefetch(instances=[model._id for model in models]):
+    with models[0].provide_as("settings"), models[1].provide_as("scene"):
+        html.Div("{{ settings.title }} / {{ scene.name }}")
+```
+
+Each provider inside then finds its own hydration already in flight instead of
+starting it. `instances` takes a list of ids, or a tuple holding a reactive
+expression (`instances=("ids",)`) when the set changes at runtime.
+
+`Prefetch` is **not** a barrier: it renders its slot immediately and always, and
+every provider inside keeps gating its own subtree as before. Removing the
+wrapper changes when the data arrives and nothing else, so it is safe to add
+around an existing layout.
+
 ---
 
 ## Nested Structures and the Object Graph

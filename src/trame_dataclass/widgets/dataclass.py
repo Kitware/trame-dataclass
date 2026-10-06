@@ -22,8 +22,26 @@ class HtmlElement(AbstractElement):
 
 __all__ = [
     "Gui",
+    "Prefetch",
     "Provider",
 ]
+
+
+def _js_string_array(values):
+    """``["ab", "cd"]`` -> ``['ab', 'cd']``, refusing anything a quote could break out of.
+
+    The ids this is given are ``StateDataModel._id``, which is base-62, so the refusal
+    is not a limitation anyone meets - it is there because the alternative to refusing
+    is emitting a template that silently does not compile.
+    """
+    out = []
+    for value in values:
+        text = str(value)
+        if "'" in text or '"' in text or "\\" in text:
+            msg = f"instance id is not safe to inline in a template: {text!r}"
+            raise ValueError(msg)
+        out.append(f"'{text}'")
+    return "[" + ", ".join(out) + "]"
 
 
 def _to_react_bind(react, instance):
@@ -173,3 +191,55 @@ class Gui(HtmlElement):
             )
             raise NotImplementedError(msg)
         self._attr_names += ["instance"]
+
+
+class Prefetch(HtmlElement):
+    """Start a wave of instances hydrating, and render its children immediately.
+
+    :class:`Provider` nests and gates its slot on its own instance being available, so
+    N providers one inside the next cost N round trips END TO END rather than N
+    requests in flight. Wrapping them in a ``Prefetch`` asks the client for every id at
+    once, so each provider finds its own hydration already under way::
+
+        with dataclass.Prefetch(instances=[model._id for model in models]):
+            for name, model in scopes.items():
+                stack.enter_context(model.provide_as(name))
+
+    It is deliberately **not** a barrier: the slot renders at once, always. Each
+    provider already withholds its own subtree until its own data is there, and a
+    page-wide gate would buy nothing more at the price of a new way for the page to
+    stay blank. Dropping this wrapper changes timing and nothing else.
+
+    Not available under ``client_type="react"``: the React client has its own manager,
+    with no prefetch component.
+    """
+
+    def __init__(self, instances=None, **kwargs):
+        """Args:
+        instances: the instance IDs to hydrate, as a list of strings or a Vue binding.
+        **kwargs: additional element attributes.
+        """
+        super().__init__(
+            "trame-dataclass-prefetch",
+            **kwargs,
+        )
+        if self.server.client_type == "react":
+            msg = (
+                "dataclass.Prefetch is not supported under client_type='react': "
+                "the React client has its own manager and no prefetch component."
+            )
+            raise NotImplementedError(msg)
+        self._attr_names += ["instances"]
+        if instances is not None:
+            # A plain list has to become a BOUND array literal, and neither half of
+            # that conversion is a convenience: handed `["ab", "cd"]`, trame reads a
+            # sequence as its `(expression, default)` binding shorthand and renders
+            # `:instances="ab"` - a legal template, a mounted component and a prop that
+            # is `undefined`; and the literal must be SINGLE-quoted, because
+            # `:instances="["ab"]"` closes the attribute at its first inner quote. A
+            # tuple still means "bind this expression", for a reactive list.
+            self["instances"] = (
+                instances
+                if isinstance(instances, tuple)
+                else (_js_string_array(instances),)
+            )

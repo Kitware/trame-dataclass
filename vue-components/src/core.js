@@ -38,6 +38,7 @@ export class DataclassManager {
     this.deepReactiveWatchers = {};
     this.pendingDeepReactives = {};
     this.pendingFetch = {};
+    this.pendingDefinition = {};
   }
 
   connect(client) {
@@ -292,6 +293,30 @@ export class DataclassManager {
     return definition?.template || "";
   }
 
+  // Start every one of these hydrating now, and resolve once all of them are done.
+  //
+  // Providers nest, and a provider's slot waits for its own instance, so provider N+1
+  // is not created until provider N's reply has landed: N of them cost N round trips
+  // END TO END rather than N requests in flight. Asking for them all up front leaves
+  // each provider to find its own hydration already under way.
+  //
+  // This reuses `fetchState`, so each id is still completed over its whole graph, the
+  // requests underneath are still deduplicated, and nothing is batched.
+  //
+  // `allSettled`, not `all`: one instance that is gone or refused must not take the
+  // rest of the wave with it. The caller is told which ids are ready.
+  async prefetch(ids) {
+    const settled = await Promise.allSettled(
+      ids.map((id) => this.fetchState(id)),
+    );
+    return ids.map((id, index) => ({
+      id,
+      ready: settled[index].status === "fulfilled",
+      error:
+        settled[index].status === "rejected" ? settled[index].reason : null,
+    }));
+  }
+
   async fetchState(id) {
     if (this.pendingFetch[id]) {
       return await this.pendingFetch[id];
@@ -355,6 +380,24 @@ export class DataclassManager {
   }
 
   async fetchDefinition(id) {
+    // `typeDefinitions[id]` is only set once the reply lands, so every instance of a
+    // class hydrating at the same time saw it missing and asked again: a wave of N
+    // instances of one class cost N definition requests. Share the in-flight promise.
+    if (this.pendingDefinition[id]) {
+      return await this.pendingDefinition[id];
+    }
+    const pending = this.callDefinition(id).catch((error) => {
+      // Conditional, so a failure cannot evict a request that replaced it.
+      if (this.pendingDefinition[id] === pending) {
+        delete this.pendingDefinition[id];
+      }
+      throw error;
+    });
+    this.pendingDefinition[id] = pending;
+    return await pending;
+  }
+
+  async callDefinition(id) {
     const data = await this.client
       .getConnection()
       .getSession()
@@ -391,10 +434,13 @@ export class DataclassManager {
       this.dataToVue[dataId].push(componentId);
     }
 
-    // Put initial state
-    if (!this.dataStates[dataId]) {
-      await this.fetchState(dataId);
-    }
+    // Put initial state. Await COMPLETION rather than testing the allocation:
+    // `dataStates[id]` is created as soon as the state reply lands, before the class
+    // definition and the nested refs are filled in, so a component that links during
+    // that window used to be handed an instance whose fields are still undefined.
+    // Serial hydration made the window hard to reach; starting a wave together makes
+    // it ordinary. `fetchState` deduplicates, so this is a wait, not a request.
+    await this.fetchState(dataId);
 
     updateWidget(
       dataId,

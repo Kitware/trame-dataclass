@@ -1,0 +1,10 @@
+{
+  "name": "trame-dataclass-client-core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Framework-agnostic client core bundled into the Vue and React components",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

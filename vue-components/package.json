@@ -2,6 +2,7 @@
   "name": "vue-trame_dataclass",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "main": "./dist/trame_dataclass.umd.js",
   "unpkg": "./dist/trame_dataclass.umd.js",
   "module": "./dist/trame_dataclass.mjs",
@@ -16,7 +17,7 @@
     "build": "vite build --emptyOutDir",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore --ignore-pattern public",
     "semantic-release": "semantic-release",
-    "test": "node --test tests/*.cjs"
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {},
   "peerDependencies": {

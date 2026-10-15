@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --emptyOutDir",
-    "lint": "eslint . --ext .js,.jsx --fix --ignore-pattern dist"
+    "lint": "eslint . --ext .js,.jsx --fix --ignore-pattern dist",
+    "test": "node --test tests/*.test.js"
   },
   "peerDependencies": {
     "react": ">=19",

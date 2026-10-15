@@ -74,17 +74,24 @@ jobs:
         with:
           node-version: 24
 
-      - name: Build Vue Components
+      - name: Test Client Core
+        run: |
+          cd client-core
+          npm test
+
+      - name: Build and Test Vue Components
         run: |
           cd vue-components
           npm i
           npm run build
+          npm test
 
-      - name: Build React Components
+      - name: Build and Test React Components
         run: |
           cd react-components
           npm i
           npm run build
+          npm test
 
   release:
     needs: [pre-commit, pytest, test-npm-build]

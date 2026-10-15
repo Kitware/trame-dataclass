@@ -31,7 +31,6 @@ export class DataclassManager {
     this.typeDefinitions = {};
     this.vueComponents = {};
     this.internalReactiveObjects = {};
-    this.dataToVue = {};
     this.pendingClientServerQueue = [];
     this.pendingFlushRequest = 0;
     this.triggers = {};
@@ -41,6 +40,12 @@ export class DataclassManager {
     this.pendingDefinition = {};
     this.pendingPublications = {};
     this.revisions = {};
+    this.completeInstances = new Set();
+    // At most this many state and definition requests in flight: a graph of thousands
+    // of instances queues behind it instead of flooding the server.
+    this.maxConcurrentCalls = 16;
+    this.activeCalls = 0;
+    this.queuedCalls = [];
   }
 
   connect(client) {
@@ -60,7 +65,8 @@ export class DataclassManager {
     // Capture discovery now, before a promise callback can let a later message
     // mistake the same instance for another first publication.
     const discovery = !this.pendingFetch[id] && !this.dataStates[id];
-    const hydration = this.fetchState(id);
+    // A delta only needs this instance's own refs, not the instances it points at.
+    const hydration = this.fetchInstance(id);
     const previous = this.pendingPublications[id] || Promise.resolve();
     const next = previous.then(async () => {
       await hydration;
@@ -74,12 +80,22 @@ export class DataclassManager {
         return;
       }
 
-      // A whole asynchronous publication owns the instance until nested fetches
-      // finish. No newer callback can overwrite its cache and then be rolled back.
+      // Never commit a reference to a graph that is still arriving: wait for every
+      // instance this delta points at, and everything those reach. Fetching never
+      // waits on this queue, so a cycle in the graph cannot deadlock here.
+      await Promise.all(
+        this.referencedInstances(id, state).map((childId) =>
+          this.fetchInstanceRecursive(childId),
+        ),
+      );
+
+      // A whole asynchronous publication owns the instance until its referenced
+      // instances are complete, and the commit below is synchronous. No newer
+      // callback can overwrite its cache and then be rolled back.
       updateServerState(this.dataStates[id].server, state);
       for (const [key, value] of Object.entries(state)) {
         if (this.isDataClass(id, key)) {
-          await this.handleNestedDataClass(id, key, value);
+          this.handleNestedDataClass(id, key, value);
         } else {
           this.dataStates[id].refs[key].value = this.wrapValue(id, key, value);
         }
@@ -183,6 +199,30 @@ export class DataclassManager {
     return this.typeDefinitions[this.dataTypes[id]].dataclass_containers[name];
   }
 
+  // Ids held by a dataclass field, whichever container holds them.
+  idsOf(value) {
+    if (value === null || value === undefined) return [];
+    if (typeof value === "string") return [value];
+    return Object.values(value);
+  }
+
+  // Ids of the instances a delta points at.
+  referencedInstances(id, state) {
+    return Object.entries(state)
+      .filter(([key]) => this.isDataClass(id, key))
+      .flatMap(([, value]) => this.idsOf(value));
+  }
+
+  // Ids of the instances `id` points at now, read off its committed refs. Every
+  // shared reactive object carries its `_id` from creation, so this works before the
+  // instances it stands for have arrived.
+  childIds(id) {
+    const { refs } = this.dataStates[id];
+    return Object.keys(refs)
+      .filter((key) => this.isDataClass(id, key))
+      .flatMap((key) => this.idsOf(this.serializeDataClass(refs[key].value)));
+  }
+
   isClientOnly(id, name) {
     return this.typeDefinitions[this.dataTypes[id]]?.client_only[name];
   }
@@ -220,7 +260,25 @@ export class DataclassManager {
     return r;
   }
 
-  async handleNestedDataClass(id, key, value) {
+  // The shared reactive object standing for `objId` wherever it is referenced. Its
+  // fetch is started, not awaited: the fetch fills this object when it lands, and
+  // whoever needs the instance complete waits with `fetchInstanceRecursive`.
+  sharedInstance(objId) {
+    if (!this.internalReactiveObjects[objId]) {
+      this.internalReactiveObjects[objId] = reactive({ _id: objId });
+      if (this.dataStates[objId]) {
+        Object.assign(
+          this.internalReactiveObjects[objId],
+          this.dataStates[objId].refs,
+        );
+      }
+    }
+    // A failure surfaces to whoever waits on this instance, which also retries it.
+    this.fetchInstance(objId).catch(() => {});
+    return this.internalReactiveObjects[objId];
+  }
+
+  handleNestedDataClass(id, key, value) {
     if (value === null) {
       if (!this.dataStates[id].refs[key]) {
         this.dataStates[id].refs[key] = ref(value);
@@ -230,25 +288,8 @@ export class DataclassManager {
     } else if (Array.isArray(value)) {
       // array structure
       const newArray = this.wrapValue(id, key, []);
-      for (let i = 0; i < value.length; i++) {
-        const objId = value[i];
-        let needUpdate = false;
-        if (!this.internalReactiveObjects[objId]) {
-          this.internalReactiveObjects[objId] = reactive({});
-          needUpdate = true;
-        }
-        newArray.push(this.internalReactiveObjects[objId]);
-        if (!this.dataStates[objId]) {
-          needUpdate = false;
-          await this.fetchState(objId);
-        }
-
-        if (needUpdate) {
-          Object.assign(
-            this.internalReactiveObjects[objId],
-            this.dataStates[objId].refs,
-          );
-        }
+      for (const objId of value) {
+        newArray.push(this.sharedInstance(objId));
       }
       if (!this.dataStates[id].refs[key]) {
         this.dataStates[id].refs[key] = ref(this.wrapValue(id, key, newArray));
@@ -257,43 +298,17 @@ export class DataclassManager {
       }
     } else if (typeof value === "string") {
       // direct dataclass
-      const objId = value;
-      if (!this.internalReactiveObjects[objId]) {
-        this.internalReactiveObjects[objId] = reactive({});
-      }
-      if (!this.dataStates[objId]) {
-        await this.fetchState(objId);
-      } else {
-        Object.assign(
-          this.internalReactiveObjects[objId],
-          this.dataStates[objId].refs,
-        );
-      }
+      const shared = this.sharedInstance(value);
       if (!this.dataStates[id].refs[key]) {
-        this.dataStates[id].refs[key] = ref(
-          this.internalReactiveObjects[objId],
-        );
+        this.dataStates[id].refs[key] = ref(shared);
       } else {
-        this.dataStates[id].refs[key].value =
-          this.internalReactiveObjects[objId];
+        this.dataStates[id].refs[key].value = shared;
       }
     } else {
       // dict structure
       const newStruct = this.wrapValue(id, key, {});
-
       for (const [k, objId] of Object.entries(value)) {
-        if (!this.internalReactiveObjects[objId]) {
-          this.internalReactiveObjects[objId] = reactive({});
-        }
-        newStruct[k] = this.internalReactiveObjects[objId];
-        if (!this.dataStates[objId]) {
-          await this.fetchState(objId);
-        } else {
-          Object.assign(
-            this.internalReactiveObjects[objId],
-            this.dataStates[objId].refs,
-          );
-        }
+        newStruct[k] = this.sharedInstance(objId);
       }
       this.dataStates[id].refs[key].value = newStruct;
     }
@@ -313,39 +328,64 @@ export class DataclassManager {
 
   async getGUITemplate(id) {
     if (!id) return "";
-    if (!this.dataStates[id]) {
-      await this.fetchState(id);
-    }
+    await this.fetchInstance(id);
     const definition = this.typeDefinitions[this.dataTypes[id]];
     return definition?.template || "";
   }
 
-  async fetchState(id) {
+  // Every fetch goes through here, so at most `maxConcurrentCalls` requests are in
+  // flight. A slot is held for one request only, never while waiting on another, so
+  // this cannot deadlock. An `urgent` request skips the queue: a class definition
+  // unblocks every instance of its class.
+  async callServer(method, args, urgent = false) {
+    if (this.activeCalls < this.maxConcurrentCalls) {
+      this.activeCalls++;
+    } else {
+      // A finishing call hands its slot straight over, so none is taken twice.
+      await new Promise((resolve) =>
+        urgent
+          ? this.queuedCalls.unshift(resolve)
+          : this.queuedCalls.push(resolve),
+      );
+    }
+    try {
+      return await this.client.getConnection().getSession().call(method, args);
+    } finally {
+      const next = this.queuedCalls.shift();
+      if (next) {
+        next();
+      } else {
+        this.activeCalls--;
+      }
+    }
+  }
+
+  // One instance: its state, its class definition and its own refs. The instances it
+  // points at are started, never awaited, so this never waits on another instance and
+  // no cycle in the graph can deadlock it. `dataStates[id]` is only set once its refs
+  // are built, so its presence means this instance is usable.
+  async fetchInstance(id) {
     if (this.pendingFetch[id]) {
       return await this.pendingFetch[id];
     }
-    this.pendingFetch[id] = (async () => {
-      const refs = { _id: id };
-      const data = await this.client
-        .getConnection()
-        .getSession()
-        .call("trame.dataclass.state.get", [id]);
+    const pending = (async () => {
+      const data = await this.callServer("trame.dataclass.state.get", [id]);
+      if (!this.typeDefinitions[data.definition]) {
+        await this.fetchDefinition(data.definition);
+      }
 
+      const refs = { _id: id };
       this.dataTypes[id] = data.definition;
       this.dataStates[id] = {
         refs,
         server: updateServerState({}, data.state),
       };
 
-      if (!this.typeDefinitions[data.definition]) {
-        await this.fetchDefinition(data.definition);
-      }
-
       for (const [key, value] of Object.entries(data.state)) {
         // check if nested dataclass
         if (this.isDataClass(id, key)) {
           refs[key] = ref(null);
-          await this.handleNestedDataClass(id, key, value);
+          this.handleNestedDataClass(id, key, value);
         } else {
           refs[key] = ref(this.wrapValue(id, key, value));
         }
@@ -362,15 +402,6 @@ export class DataclassManager {
         }
       }
 
-      if (this.dataToVue[id]) {
-        this.dataToVue[id].forEach((componentId) => {
-          updateWidget(
-            id,
-            this.dataStates[id],
-            this.vueComponents[componentId],
-          );
-        });
-      }
       if (this.internalReactiveObjects[id]) {
         Object.assign(
           this.internalReactiveObjects[id],
@@ -379,8 +410,43 @@ export class DataclassManager {
       }
       this.revisions[id] = data.revision;
       return this.dataStates[id];
-    })();
-    return await this.pendingFetch[id];
+    })().catch((error) => {
+      // Forget the failed attempt, so the next request for this id starts over
+      // instead of every later caller re-awaiting the same rejection.
+      delete this.pendingFetch[id];
+      delete this.dataStates[id];
+      delete this.dataTypes[id];
+      throw error;
+    });
+    this.pendingFetch[id] = pending;
+    return await pending;
+  }
+
+  // `id` and every instance it reaches, one level of the graph at a time: each level
+  // is fetched in parallel, and a cycle is only an instance already seen. A complete
+  // instance stays complete, because a publication never commits a reference before
+  // its target is complete, so it is not walked again.
+  async fetchInstanceRecursive(id) {
+    if (this.completeInstances.has(id)) {
+      return this.dataStates[id];
+    }
+    const seen = new Set([id]);
+    let level = [id];
+    while (level.length) {
+      await Promise.all(level.map((levelId) => this.fetchInstance(levelId)));
+      const next = [];
+      for (const parentId of level) {
+        for (const childId of this.childIds(parentId)) {
+          if (!seen.has(childId) && !this.completeInstances.has(childId)) {
+            seen.add(childId);
+            next.push(childId);
+          }
+        }
+      }
+      level = next;
+    }
+    seen.forEach((seenId) => this.completeInstances.add(seenId));
+    return this.dataStates[id];
   }
 
   async fetchDefinition(id) {
@@ -402,10 +468,11 @@ export class DataclassManager {
   }
 
   async callDefinition(id) {
-    const data = await this.client
-      .getConnection()
-      .getSession()
-      .call("trame.dataclass.definition.get", [id]);
+    const data = await this.callServer(
+      "trame.dataclass.definition.get",
+      [id],
+      true,
+    );
 
     this.typeDefinitions[id] = {
       template: `No GUI for dataclass ${id}`,
@@ -423,24 +490,12 @@ export class DataclassManager {
     }
   }
 
-  unlink(dataId, componentId) {
-    if (this.dataToVue[dataId]) {
-      this.dataToVue[dataId] = this.dataToVue[dataId].filter(
-        (v) => v !== componentId,
-      );
-    }
-  }
-
   async link(dataId, componentId) {
-    if (!this.dataToVue[dataId]) {
-      this.dataToVue[dataId] = [componentId];
-    } else {
-      this.dataToVue[dataId].push(componentId);
-    }
-
-    // Put initial state
-    if (!this.dataStates[dataId]) {
-      await this.fetchState(dataId);
+    // A component only ever sees a complete graph.
+    await this.fetchInstanceRecursive(dataId);
+    // It may have moved on to another instance while this one arrived.
+    if (this.vueComponents[componentId]?.id !== dataId) {
+      return;
     }
 
     updateWidget(
@@ -456,15 +511,12 @@ export class DataclassManager {
     if (prevDataId === newDataId) {
       return false;
     }
-    this.unlink(prevDataId, componentId);
     this.vueComponents[componentId] = internals;
     await this.link(newDataId, componentId);
     return true;
   }
 
   disconnectVueComponent(componentId) {
-    const dataId = this.vueComponents[componentId]?.id;
     delete this.vueComponents[componentId];
-    this.unlink(dataId, componentId);
   }
 }

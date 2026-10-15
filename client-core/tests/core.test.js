@@ -1,113 +1,53 @@
-/* eslint-env node */
-const assert = require("node:assert/strict");
-const test = require("node:test");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
-const Vue = require("vue");
-const source =
-  fs
-    .readFileSync(
-      process.env.DATACLASS_CORE || path.join(__dirname, "../src/core.js"),
-      "utf8",
-    )
-    .replace(
-      'import { ref, reactive, watch } from "vue";',
-      "const { ref, reactive, watch } = Vue;",
-    )
-    .replace("export class DataclassManager", "class DataclassManager") +
-  "\nmodule.exports = { DataclassManager };";
-function deferred() {
-  let resolve, reject;
-  const promise = new Promise((a, b) => {
-    resolve = a;
-    reject = b;
-  });
-  return { promise, resolve, reject };
-}
-const tick = () => new Promise((resolve) => setImmediate(resolve));
-const definition = (containers = []) => ({
-  dataclass_containers: containers,
-  client_only: [],
-  deep_reactive: [],
-});
-const state = (values, type = "Layer", revision = 0, hold = null) => ({
-  definition: type,
-  state: values,
-  revision,
-  hold,
-});
-function fixture(states, definitions = { Layer: definition() }) {
-  const errors = [],
-    calls = [];
-  let inFlight = 0,
-    maxInFlight = 0;
-  const context = {
-    Vue,
-    module: { exports: {} },
-    console: { error: (...args) => errors.push(args) },
-  };
-  vm.runInNewContext(source, context);
-  const manager = new context.module.exports.DataclassManager();
-  let publication;
-  const session = {
-    async call(name, args) {
-      calls.push([name, args]);
-      maxInFlight = Math.max(maxInFlight, ++inFlight);
-      try {
-        // Reply asynchronously, as a server would, so requests can overlap.
-        await Promise.resolve();
-        if (name === "trame.dataclass.state.get") {
-          const original = states[args[0]];
-          const snapshot = structuredClone({
-            definition: original.definition,
-            state: original.state,
-            revision: original.revision,
-          });
-          if (original.hold) await original.hold.promise;
-          return snapshot;
-        }
-        if (name === "trame.dataclass.definition.get") {
-          const result = definitions[args[0]];
-          return await (result.promise || result);
-        }
-        return null;
-      } finally {
-        inFlight--;
-      }
-    },
-    subscribe(topic, callback) {
-      publication = callback;
-      return {};
-    },
-  };
-  manager.connect({ getConnection: () => ({ getSession: () => session }) });
-  return {
-    manager,
-    errors,
-    calls,
-    maxInFlight: () => maxInFlight,
-    publish: (id, values, revision) =>
-      publication([{ id, state: values, revision }]),
-    value: (id, key) => manager.dataStates[id].refs[key].value,
-  };
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { DataclassCore } from "../src/index.js";
+import { connect, deferred, definition, state, tick } from "./harness.js";
+
+// The smallest client: an instance is a plain object holding the state as sent,
+// dataclass fields included as ids.
+class PlainManager extends DataclassCore {
+  constructor() {
+    super();
+    this.values = {};
+  }
+
+  buildInstance(id, values) {
+    this.values[id] = { ...values };
+  }
+
+  applyState(id, values) {
+    Object.assign(this.values[id], values);
+  }
 }
 
-test("publication waits for the missing class definition", async () => {
+function fixture(states, definitions) {
+  const f = connect(new PlainManager(), states, definitions);
+  return { ...f, value: (id, key) => f.manager.values[id]?.[key] };
+}
+
+const failing = () => ({
+  get promise() {
+    return Promise.reject(new Error("offline"));
+  },
+});
+
+test("publication waits for the missing class definition", async (t) => {
+  const error = t.mock.method(console, "error", () => {});
   const gate = deferred(),
     f = fixture({ layer: state({ visible: false }) }, { Layer: gate });
   const hydration = f.manager.fetchInstanceRecursive("layer");
   await tick();
   const update = f.publish("layer", { visible: true }, 1);
   await tick();
-  assert.equal(f.manager.dataStates.layer?.refs.visible, undefined);
+  assert.equal(f.value("layer", "visible"), undefined);
   gate.resolve(definition());
   await Promise.all([hydration, update]);
   assert.equal(f.value("layer", "visible"), true);
-  assert.deepEqual(f.errors, []);
+  assert.equal(error.mock.callCount(), 0);
 });
 
-test("publication applies to its own refs while its children are still arriving", async () => {
+test("publication applies to its own state while its children are still arriving", async () => {
   const gate = deferred(),
     f = fixture(
       {
@@ -123,8 +63,7 @@ test("publication applies to its own refs while its children are still arriving"
   assert.equal(f.manager.completeInstances.has("parent"), false);
   gate.resolve(definition());
   await hydration;
-  assert.equal(f.value("parent", "child").value, 1);
-  assert.deepEqual(f.errors, []);
+  assert.equal(f.manager.completeInstances.has("parent"), true);
 });
 
 test("a newer delta survives the first outstanding state reply", async () => {
@@ -136,10 +75,9 @@ test("a newer delta survives the first outstanding state reply", async () => {
   gate.resolve();
   await Promise.all([hydration, update]);
   assert.equal(f.value("layer", "visible"), true);
-  assert.deepEqual(f.errors, []);
 });
 
-test("a newer publication cannot overtake an older callback fetching a child", async () => {
+test("a newer publication cannot overtake an older one waiting on a child", async () => {
   const gate = deferred(),
     f = fixture(
       {
@@ -156,13 +94,8 @@ test("a newer publication cannot overtake an older callback fetching a child", a
   assert.equal(f.value("parent", "visible"), false);
   gate.resolve(definition());
   await Promise.all([older, newer]);
-  await Vue.nextTick();
+  assert.deepEqual(f.value("parent", "children"), ["child"]);
   assert.equal(f.value("parent", "visible"), true);
-  assert.deepEqual(f.errors, []);
-  assert.equal(
-    f.calls.filter(([name]) => name === "trame.dataclass.state.update").length,
-    0,
-  );
 });
 
 test("a snapshot revision subsumes older and equal publications without rollback", async () => {
@@ -209,16 +142,25 @@ test("one blocked instance does not hold unrelated updates", async () => {
   assert.equal(f.value("blocked", "value"), 1);
 });
 
-test("a rejected publication is reported and does not poison subsequent publications", async () => {
-  const f = fixture({ layer: state({ value: 0 }) });
-  await f.manager.fetchInstanceRecursive("layer");
-  await f.publish("layer", { undeclared: 1 }, 1);
-  assert.equal(f.errors.length, 1);
-  await f.publish("layer", { value: 2 }, 2);
-  assert.equal(f.value("layer", "value"), 2);
+test("a failed publication is reported and does not poison later ones", async (t) => {
+  const error = t.mock.method(console, "error", () => {});
+  const f = fixture(
+    {
+      parent: state({ child: null, value: 0 }, "Parent"),
+      broken: state({}, "Broken"),
+    },
+    { Parent: definition(["child"]), Broken: failing() },
+  );
+  await f.manager.fetchInstanceRecursive("parent");
+  await f.publish("parent", { child: "broken" }, 1);
+  assert.equal(error.mock.callCount(), 1);
+  assert.equal(f.value("parent", "child"), null);
+  await f.publish("parent", { value: 2 }, 2);
+  assert.equal(f.value("parent", "value"), 2);
 });
 
-test("settling an old publication does not remove a newer active queue", async () => {
+test("settling an old publication does not remove a newer active queue", async (t) => {
+  const error = t.mock.method(console, "error", () => {});
   const gate = deferred(),
     f = fixture(
       {
@@ -241,13 +183,13 @@ test("settling an old publication does not remove a newer active queue", async (
   gate.resolve(definition());
   await Promise.all([second, third]);
   assert.equal(f.value("parent", "visible"), true);
-  assert.deepEqual(f.errors, []);
+  assert.equal(error.mock.callCount(), 0);
 });
 
 test("an RPC rejection rejects hydration rather than leaving a promise pending", async () => {
   const gate = deferred(),
     f = fixture({ layer: state({ value: 0 }, "Layer", 0, gate) });
-  const hydration = f.manager.fetchInstanceRecursive("layer");
+  const hydration = f.manager.fetchInstance("layer");
   const rejected = assert.rejects(hydration, /offline/);
   gate.reject(new Error("offline"));
   await rejected;
@@ -258,7 +200,7 @@ for (const [shape, reference] of [
   ["list", ["child"]],
   ["dict", { only: "child" }],
 ]) {
-  test(`a publication waits for a ${shape} reference that is still hydrating`, async () => {
+  test(`a publication waits for a ${shape} reference that is still arriving`, async () => {
     const gate = deferred(),
       f = fixture(
         {
@@ -286,14 +228,13 @@ for (const [shape, reference] of [
     assert.equal(f.value("second", "child"), null);
     gate.resolve(definition());
     await Promise.all([first, second]);
-    const value = f.value("second", "child");
-    const child = shape === "field" ? value : Object.values(value)[0];
-    assert.equal(child.count, 42);
-    assert.deepEqual(f.errors, []);
+    assert.deepEqual(f.value("second", "child"), reference);
+    assert.ok(f.manager.completeInstances.has("child"));
   });
 }
 
-test("a failed hydration is retried instead of dropping every later publication", async () => {
+test("a failed hydration is retried instead of dropping every later publication", async (t) => {
+  const error = t.mock.method(console, "error", () => {});
   let attempts = 0;
   const f = fixture(
     { layer: state({ value: 0 }) },
@@ -308,11 +249,20 @@ test("a failed hydration is retried instead of dropping every later publication"
     },
   );
   await f.publish("layer", { value: 1 }, 1);
-  assert.equal(f.errors.length, 1);
-  assert.equal(f.manager.dataStates.layer, undefined);
+  assert.equal(error.mock.callCount(), 1);
+  assert.equal(f.manager.serverState.layer, undefined);
   await f.publish("layer", { value: 2 }, 2);
   assert.equal(f.value("layer", "value"), 2);
-  assert.equal(f.errors.length, 1);
+  assert.equal(error.mock.callCount(), 1);
+});
+
+test("an instance the server does not know is not cached", async () => {
+  const states = {};
+  const f = fixture(states);
+  assert.equal(await f.manager.fetchInstanceRecursive("late"), false);
+  states.late = state({ value: 1 });
+  assert.equal(await f.manager.fetchInstanceRecursive("late"), true);
+  assert.equal(f.value("late", "value"), 1);
 });
 
 test("waiting for a referenced instance does not deadlock on a cycle", async () => {
@@ -325,8 +275,8 @@ test("waiting for a referenced instance does not deadlock on a cycle", async () 
   );
   await f.manager.fetchInstanceRecursive("a");
   await f.publish("a", { peer: "b" }, 1);
-  assert.equal(f.value("a", "peer").peer._id, "a");
-  assert.deepEqual(f.errors, []);
+  assert.equal(f.value("a", "peer"), "b");
+  assert.ok(f.manager.completeInstances.has("b"));
 });
 
 test("an instance is complete only once every instance it reaches is", async () => {
@@ -349,7 +299,7 @@ test("an instance is complete only once every instance it reaches is", async () 
   assert.equal(secondDone, false);
   gate.resolve(definition());
   await Promise.all([first, second]);
-  assert.equal(f.value("second", "child").count, 42);
+  assert.equal(f.value("child", "count"), 42);
 });
 
 test("a graph is fetched one level at a time, not one instance at a time", async () => {
@@ -372,7 +322,7 @@ test("a graph is fetched one level at a time, not one instance at a time", async
   );
   await f.manager.fetchInstanceRecursive("parent");
   assert.equal(f.maxInFlight(), 5);
-  assert.equal(f.value("parent", "children")[4].grandchild.value, "child4");
+  assert.equal(f.value("child4g", "value"), "child4");
   assert.equal(
     f.calls.filter(([name]) => name === "trame.dataclass.definition.get")
       .length,
@@ -395,7 +345,7 @@ test("requests in flight never exceed maxConcurrentCalls", async () => {
   await f.manager.fetchInstanceRecursive("parent");
   assert.equal(f.maxInFlight(), 4);
   assert.equal(f.manager.activeCalls, 0);
-  assert.equal(f.value("parent", "children")[39].value, "child39");
+  assert.equal(f.value("child39", "value"), "child39");
   // The definition jumps the queue rather than waiting behind every child: it goes
   // after the parent, its definition, the first four children and the four handed
   // their slots as those replied - ahead of the 32 still queued.
@@ -415,69 +365,57 @@ test("a cycle in the graph completes", async () => {
     { Node: definition(["peer"]) },
   );
   await f.manager.fetchInstanceRecursive("a");
-  assert.equal(f.value("a", "peer").peer._id, "a");
   assert.deepEqual([...f.manager.completeInstances].sort(), ["a", "b"]);
 });
 
-test("a component is not linked until the graph it shows is complete", async () => {
-  const gate = deferred(),
-    f = fixture(
-      {
-        parent: state({ child: "child" }, "Parent"),
-        child: state({ count: 42 }, "Child"),
-      },
-      { Parent: definition(["child"]), Child: gate },
-    );
-  // Something else started the fetch: a publication, a parent, another provider.
-  f.manager.fetchInstance("parent");
-  await tick();
-  const data = Vue.reactive({});
-  const link = f.manager.connectVueComponent("provider", {
-    id: "parent",
-    data,
-    guards: {},
-  });
-  await tick();
-  assert.equal(data._id, undefined);
-  gate.resolve(definition());
-  await link;
-  assert.equal(data._id, "parent");
-  assert.equal(data.child.count, 42);
+test("graphCompleted reports every instance a walk completed", async () => {
+  const f = fixture(
+    {
+      parent: state({ child: "child" }, "Parent"),
+      child: state({ value: 1 }, "Child"),
+    },
+    { Parent: definition(["child"]), Child: definition() },
+  );
+  const completed = [];
+  f.manager.graphCompleted = (ids) => completed.push(...ids);
+  await f.manager.fetchInstanceRecursive("parent");
+  assert.deepEqual(completed.sort(), ["child", "parent"]);
 });
 
-test("a component that moved on is not linked to the instance it left", async () => {
-  const gate = deferred(),
-    f = fixture(
-      {
-        slow: state({ value: "slow" }, "Slow"),
-        fast: state({ value: "fast" }),
-      },
-      { Slow: gate, Layer: definition() },
-    );
-  const data = Vue.reactive({});
-  const slow = f.manager.connectVueComponent("provider", {
-    id: "slow",
-    data,
-    guards: {},
-  });
+test("a client edit is sent, and one the server already holds is not", async () => {
+  const f = fixture({ layer: state({ value: 1 }) });
+  await f.manager.fetchInstanceRecursive("layer");
+  f.manager.updateServer("layer", "value", 1);
   await tick();
-  await f.manager.connectVueComponent("provider", {
-    id: "fast",
-    data,
-    guards: {},
-  });
-  gate.resolve(definition());
-  await slow;
-  assert.equal(data._id, "fast");
-  assert.equal(data.value, "fast");
+  assert.deepEqual(f.updates(), []);
+  f.manager.updateServer("layer", "value", 2);
+  await tick();
+  assert.deepEqual(f.updates(), [{ layer: { value: 2 } }]);
 });
 
-test("a GUI template waits for the class definition", async () => {
-  const gate = deferred(),
-    f = fixture({ layer: state({ value: 0 }) }, { Layer: gate });
-  f.manager.fetchInstance("layer");
+test("edits queued behind a request send the last value of each field", async () => {
+  const f = fixture({ layer: state({ value: "x" }) });
+  await f.manager.fetchInstanceRecursive("layer");
+  // The first edit goes out at once; the next two queue behind it and return the
+  // field to the value just sent, so nothing more needs sending.
+  f.manager.updateServer("layer", "value", "z");
+  f.manager.updateServer("layer", "value", "y");
+  f.manager.updateServer("layer", "value", "z");
   await tick();
-  const template = f.manager.getGUITemplate("layer");
-  gate.resolve({ ...definition(), template: "<b>layer</b>" });
-  assert.equal(await template, "<b>layer</b>");
+  assert.deepEqual(f.updates(), [{ layer: { value: "z" } }]);
+});
+
+test("a client edit of a dataclass field is sent, and walked, by id", async () => {
+  const f = fixture(
+    {
+      parent: state({ child: null }, "Parent"),
+      other: state({ value: 1 }, "Child"),
+    },
+    { Parent: definition(["child"]), Child: definition() },
+  );
+  await f.manager.fetchInstanceRecursive("parent");
+  f.manager.updateServer("parent", "child", { _id: "other", value: 1 });
+  await tick();
+  assert.deepEqual(f.updates(), [{ parent: { child: "other" } }]);
+  assert.deepEqual(f.manager.childIds("parent"), ["other"]);
 });

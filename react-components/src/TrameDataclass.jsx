@@ -22,7 +22,11 @@ export default function TrameDataclass({ instance, always, render }) {
   useEffect(() => {
     if (!instance) return;
     if (trame?.client) manager.connect(trame.client);
-    manager.ensureFetched(instance);
+    manager
+      .fetchInstanceRecursive(instance)
+      .catch((error) =>
+        console.error(`Dataclass instance ${instance} failed to load`, error),
+      );
   }, [instance, trame]);
 
   const data = useSyncExternalStore(

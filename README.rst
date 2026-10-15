@@ -351,7 +351,8 @@ We recommend using uv for setting up and managing a virtual environment for your
     pre-commit install --hook-type commit-msg
 
 
-Build and install the Vue components
+Build and install the Vue and React components. Both bundle the shared,
+framework-agnostic client in ``client-core``.
 
 .. code-block:: console
 
@@ -359,6 +360,19 @@ Build and install the Vue components
     npm i
     npm run build
     cd -
+
+    cd react-components
+    npm i
+    npm run build
+    cd -
+
+Run the client tests
+
+.. code-block:: console
+
+    (cd client-core && npm test)
+    (cd vue-components && npm test)
+    (cd react-components && npm test)
 
 For running tests and checks, you can run ``nox``.
 

@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v2.2.2 (2026-10-16)
+
+### Bug Fixes
+
+- **client**: Fetch the instance graph level by level, with a request cap
+  ([`22c1bbe`](https://github.com/Kitware/trame-dataclass/commit/22c1bbe5982f719d9c22b26c9fbb1d6e3e126fb7))
+
+- **client**: Keep publication order through hydration
+  ([`6d9b2dd`](https://github.com/Kitware/trame-dataclass/commit/6d9b2ddaa5fa3cfd448c40027f40e3d85bf87243))
+
+- **react**: Build the React client on the shared client core
+  ([`203acd3`](https://github.com/Kitware/trame-dataclass/commit/203acd31b544c303fa69ed5e87cb739b884da238))
+
+- **v1**: Carry revisions, so both protocols look the same to the client
+  ([`e472c86`](https://github.com/Kitware/trame-dataclass/commit/e472c864057d916f3242c56bcb070c40020dfedc))
+
+### Continuous Integration
+
+- Run the client tests, and document building both clients
+  ([`80130ea`](https://github.com/Kitware/trame-dataclass/commit/80130ea0452879d0d58dcea07f3b1b33134988d1))
+
+### Documentation
+
+- **examples**: Add graph loading validation apps for Vue and React
+  ([`0e9ed50`](https://github.com/Kitware/trame-dataclass/commit/0e9ed50a5c3aad99a1bdeb9c13ca47b8a045ebf3))
+
+### Performance Improvements
+
+- **client**: Share the in-flight class definition request
+  ([`0f85c93`](https://github.com/Kitware/trame-dataclass/commit/0f85c9334ed0bb9319c0e4030bf5e1b9b225af42))
+
+### Refactoring
+
+- **client**: Extract a framework-agnostic client core, Vue first
+  ([`1e85bf5`](https://github.com/Kitware/trame-dataclass/commit/1e85bf5bb3408ba47d86f6fd1be78b08d8fe6724))
+
+
 ## v2.2.1 (2026-09-22)
 
 ### Bug Fixes

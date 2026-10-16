@@ -2,6 +2,7 @@ from wslink import register as export_rpc
 from wslink.websocket import LinkProtocol
 
 from trame_dataclass.core import StateDataModel, get_instance
+from trame_dataclass.module.revisions import RevisionsMixin
 
 
 def compute_definition(trame_dataclass_class):
@@ -18,7 +19,9 @@ def compute_definition(trame_dataclass_class):
     }
 
 
-class TrameDataclassProtocol(LinkProtocol):
+class TrameDataclassProtocol(RevisionsMixin, LinkProtocol):
+    find_instance = staticmethod(get_instance)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -75,7 +78,7 @@ class TrameDataclassProtocol(LinkProtocol):
         return {
             "id": instance_id,
             "definition": self.class_definitions[obj.__class__]["id"],
-            "state": obj.client_state,
+            **self.snapshot(obj),
         }
 
     @export_rpc("trame.dataclass.state.update")
@@ -91,7 +94,3 @@ class TrameDataclassProtocol(LinkProtocol):
                         setattr(obj, k, field.decoder(v))
                     else:
                         setattr(obj, k, v)
-
-    def push_delta(self, msg):
-        # print("publish", msg)
-        self.publish("trame.dataclass.publish", msg)

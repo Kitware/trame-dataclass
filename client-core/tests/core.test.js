@@ -108,24 +108,6 @@ test("a snapshot revision subsumes older and equal publications without rollback
   assert.equal(f.value("layer", "value"), "later");
 });
 
-test("a v1 protocol discovery snapshot is not overwritten by its older discovery message", async () => {
-  const f = fixture({ layer: state({ value: "snapshot" }, "Layer", null) });
-  await f.publish("layer", { value: "discovery" });
-  assert.equal(f.value("layer", "value"), "snapshot");
-  await f.publish("layer", { value: "subsequent" });
-  assert.equal(f.value("layer", "value"), "subsequent");
-});
-
-test("a v1 protocol in-flight snapshot still replays a newer publication", async () => {
-  const gate = deferred(),
-    f = fixture({ layer: state({ value: "old" }, "Layer", null, gate) });
-  const hydration = f.manager.fetchInstanceRecursive("layer");
-  const update = f.publish("layer", { value: "new" });
-  gate.resolve();
-  await Promise.all([hydration, update]);
-  assert.equal(f.value("layer", "value"), "new");
-});
-
 test("one blocked instance does not hold unrelated updates", async () => {
   const gate = deferred(),
     f = fixture({

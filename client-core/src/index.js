@@ -98,23 +98,15 @@ export class DataclassCore {
 
   enqueuePublication(event) {
     const { id } = event;
-    // Capture discovery now, before a promise callback can let a later message
-    // mistake the same instance for another first publication.
-    const discovery = !this.pendingFetch[id];
     // A delta only needs this instance's own state, not the instances it points at.
     const hydration = this.fetchInstance(id);
     const previous = this.pendingPublications[id] || Promise.resolve();
     const next = previous.then(async () => {
       if (!(await hydration)) return;
       const { state, revision } = event;
-      if (revision === undefined) {
-        // The v1 protocol, which also uses this client, does not carry revisions.
-        // Its discovery publication precedes the state request and is already
-        // represented by that reply.
-        if (discovery) return;
-      } else if (revision <= this.revisions[id]) {
-        return;
-      }
+      // The snapshot, or an earlier delta, already holds this one. That includes the
+      // publication that announced the instance and started its fetch.
+      if (revision <= this.revisions[id]) return;
 
       // Never commit a reference to a graph that is still arriving: wait for every
       // instance this delta points at, and everything those reach. Fetching never

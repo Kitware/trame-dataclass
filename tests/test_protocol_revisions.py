@@ -143,6 +143,18 @@ def test_a_retired_id_keeps_the_existing_missing_state_protocol(version):
     assert p.get_state("gone") == {"id": "gone", "state": None}
 
 
+def test_a_delta_for_a_collected_model_is_published_without_a_revision(version):
+    """A delta flushed after its model was collected must not raise."""
+    p, a = protocol(version), version.Sample()
+    retired = a._id
+    del a
+    gc.collect()
+    p.push_delta({"id": retired, "state": {"value": 1}})
+    published = p.publish.call_args.args[1]
+    assert published == {"id": retired, "state": {"value": 1}}
+    assert "revision" not in published
+
+
 def test_a_model_that_compares_by_value_can_still_be_read_and_revised(version):
     """MUTATION (run): key ``state_revisions`` by ``obj``. Both calls raise TypeError."""
     p, a = protocol(version), version.ValueEqual()

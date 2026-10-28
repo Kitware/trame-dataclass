@@ -48,9 +48,14 @@ class RevisionsMixin:
 
     def push_delta(self, msg):
         """Publish a state delta to all connected clients via the ``trame.dataclass.publish`` topic."""
-        # Only a live model flushes, and every model registers itself on creation, so
-        # its id always resolves and every publication carries a revision.
-        key = self._track_revisions(self.find_instance(msg["id"]))
+        obj = self.find_instance(msg["id"])
+        if obj is None:
+            # The registry holds weak references, so a delta flushed after its model
+            # was collected has no instance. Publish it without a revision, as
+            # get_state already answers {"id": ..., "state": None} for such an id.
+            self.publish("trame.dataclass.publish", msg)
+            return
+        key = self._track_revisions(obj)
         revision = self.state_revisions[key] + 1
         self.state_revisions[key] = revision
         self.publish("trame.dataclass.publish", {**deepcopy(msg), "revision": revision})

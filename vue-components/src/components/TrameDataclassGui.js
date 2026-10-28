@@ -1,13 +1,13 @@
 import { ref, watchEffect, computed, inject } from "vue";
-import { GLOBAL_DATA_MANAGER } from "./TrameDataclass";
-import { setup } from "../setup";
+import { GLOBAL_DATA_MANAGER } from "./TrameDataclass.js";
+import { setup } from "../setup.js";
 
 export default {
   props: ["instance"],
   setup(props) {
     const innerTemplate = ref("");
     const trame = inject("trame");
-    GLOBAL_DATA_MANAGER.connect(trame.client);
+    GLOBAL_DATA_MANAGER.attach(trame);
 
     watchEffect(async () => {
       innerTemplate.value = "";

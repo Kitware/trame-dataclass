@@ -168,6 +168,24 @@ export class DataclassManager extends DataclassCore {
     inst.listeners.add(callback);
     return () => inst.listeners.delete(callback);
   }
+
+  // Re-hydrate every instance something is still showing. The core cleared what
+  // it had cached for the retired connection, including completeness, so these
+  // instances report unavailable until their graph arrives from the new one; the
+  // `target` object each record proxies is kept, so a component stays bound.
+  connectionReplaced() {
+    for (const [id, inst] of Object.entries(this.states)) {
+      if (!inst.listeners.size) continue;
+      inst.notify();
+      this.fetchInstanceRecursive(id).catch((error) => {
+        // A retired session is not a failure: another replacement has already been
+        // adopted and will re-fetch this instance in turn.
+        if (!error?.retiredSession) {
+          console.error(`Dataclass instance ${id} failed to reload`, error);
+        }
+      });
+    }
+  }
 }
 
 let singleton = null;

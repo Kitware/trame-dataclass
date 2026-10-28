@@ -1,6 +1,6 @@
 import { inject, toRef, reactive, onBeforeUnmount, computed, watch } from "vue";
 
-import { DataclassManager } from "../core";
+import { DataclassManager } from "../core.js";
 
 export const GLOBAL_DATA_MANAGER = new DataclassManager();
 let GLOBAL_VUE_INSTANCE_ID = 1;
@@ -18,7 +18,7 @@ export default {
     const guards = { serverPush: false };
     const vueInstanceId = `vueDataClass${GLOBAL_VUE_INSTANCE_ID++}`;
 
-    GLOBAL_DATA_MANAGER.connect(trame.client);
+    GLOBAL_DATA_MANAGER.attach(trame);
     watch(
       () => props.instance,
       async (instanceId) => {

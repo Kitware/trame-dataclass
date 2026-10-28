@@ -326,7 +326,7 @@ test("requests in flight never exceed maxConcurrentCalls", async () => {
   f.manager.maxConcurrentCalls = 4;
   await f.manager.fetchInstanceRecursive("parent");
   assert.equal(f.maxInFlight(), 4);
-  assert.equal(f.manager.activeCalls, 0);
+  assert.equal(f.manager.gate.active, 0);
   assert.equal(f.value("child39", "value"), "child39");
   // The definition jumps the queue rather than waiting behind every child: it goes
   // after the parent, its definition, the first four children and the four handed

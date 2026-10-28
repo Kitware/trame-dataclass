@@ -16,12 +16,12 @@ export default function TrameDataclass({ instance, always, render }) {
   const trame = window.trame;
 
   useEffect(() => {
-    if (trame?.client) manager.connect(trame.client);
+    manager.attach(trame);
   }, [trame]);
 
   useEffect(() => {
     if (!instance) return;
-    if (trame?.client) manager.connect(trame.client);
+    manager.attach(trame);
     manager
       .fetchInstanceRecursive(instance)
       .catch((error) =>

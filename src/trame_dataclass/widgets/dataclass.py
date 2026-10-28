@@ -22,6 +22,7 @@ class HtmlElement(AbstractElement):
 
 __all__ = [
     "Gui",
+    "Prefetch",
     "Provider",
 ]
 
@@ -173,3 +174,52 @@ class Gui(HtmlElement):
             )
             raise NotImplementedError(msg)
         self._attr_names += ["instance"]
+
+
+def _js_string_array(values):
+    """``["ab", "cd"]`` -> ``"['ab', 'cd']"``, refusing ids a quote could escape."""
+    out = []
+    for value in values:
+        text = str(value)
+        if "'" in text or '"' in text or "\\" in text:
+            msg = f"instance id is not safe to inline in a template: {text!r}"
+            raise ValueError(msg)
+        out.append(f"'{text}'")
+    return "[" + ", ".join(out) + "]"
+
+
+class Prefetch(HtmlElement):
+    """Start loading a list of instances at once, and render its children immediately.
+
+    A :class:`Provider` only renders its children once its own instance is
+    available, so providers nested inside each other load one after another.
+    Wrapping them in a ``Prefetch`` asks for every instance up front::
+
+        with dataclass.Prefetch(instances=[m._id for m in models]):
+            with models[0].provide_as("settings"), models[1].provide_as("scene"):
+                ...
+
+    It is not a barrier: the children always render, and each provider still waits
+    for its own data. Vue only.
+    """
+
+    def __init__(self, instances=None, **kwargs):
+        """Args:
+        instances: the instance ids to load, as a list of strings, or a tuple
+            holding a Vue binding expression.
+        **kwargs: additional element attributes.
+        """
+        super().__init__("trame-dataclass-prefetch", **kwargs)
+        if self.server.client_type == "react":
+            msg = "dataclass.Prefetch is not supported with client_type='react'"
+            raise NotImplementedError(msg)
+        self._attr_names += ["instances"]
+        if instances is not None:
+            # A list must become a bound array literal: trame reads a sequence as
+            # its (expression, default) shorthand, and the literal must be
+            # single-quoted to stay inside the HTML attribute.
+            self["instances"] = (
+                instances
+                if isinstance(instances, tuple)
+                else (_js_string_array(instances),)
+            )

@@ -302,6 +302,23 @@ export class DataclassCore {
     return await pending;
   }
 
+  // Start every id in `ids` loading at once, each over its whole graph, and resolve
+  // to `[{ id, ready, error }]` once all of them have settled. Nested providers each
+  // wait for their parent before they mount, so their fetches would otherwise run one
+  // after another. Every request underneath is shared with the providers, so a
+  // provider that mounts later finds its instance already loading or loaded.
+  async prefetch(ids) {
+    const settled = await Promise.allSettled(
+      ids.map((id) => this.fetchInstanceRecursive(id)),
+    );
+    return ids.map((id, index) => ({
+      id,
+      ready: settled[index].status === "fulfilled" && settled[index].value,
+      error:
+        settled[index].status === "rejected" ? settled[index].reason : null,
+    }));
+  }
+
   // `id` and every instance it reaches, one level of the graph at a time: each level
   // is fetched in parallel, and a cycle is only an instance already seen. A complete
   // instance stays complete, because a publication never commits a reference before

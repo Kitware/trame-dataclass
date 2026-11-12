@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import inspect
-import string
 import sys
 import types
 import weakref
@@ -11,6 +10,9 @@ from enum import Enum, auto
 from typing import Any, ForwardRef, Union, get_args, get_origin
 
 from loguru import logger
+from trame_common.obj import mcp as mcp_options
+from trame_common.obj.mcp import MCPExposable
+from trame_common.utils.ids import next_id
 
 from trame_dataclass import module as dataclass_module
 from trame_dataclass.widgets.dataclass import Provider
@@ -21,26 +23,10 @@ except ModuleNotFoundError:
     from typing import evaluate_forward_ref
 
 # -----------------------------------------------------------------------------
-# Id generator
+# Instances, by id (ids come from trame-common, shared with trame components)
 # -----------------------------------------------------------------------------
 INSTANCES = weakref.WeakValueDictionary()
-_INSTANCE_COUNT = 0
-_INSTANCE_ID_CHARS = string.digits + string.ascii_letters
-
-
-def _next_id():
-    global _INSTANCE_COUNT  # noqa: PLW0603
-    _INSTANCE_COUNT += 1
-
-    result = []
-    value = _INSTANCE_COUNT
-    size = len(_INSTANCE_ID_CHARS)
-    while value > 0:
-        remainder = value % size
-        result.append(_INSTANCE_ID_CHARS[remainder])
-        value //= size
-
-    return "".join(result[::-1])
+_next_id = next_id
 
 
 # -----------------------------------------------------------------------------
@@ -269,7 +255,7 @@ class TypeChecker:
             logger.warning(msg)
 
 
-class StateDataModel:
+class StateDataModel(MCPExposable):
     """Base class for reactive data models that synchronize state between server and client.
 
     Declare fields as class-level descriptors (``Sync``, ``ServerOnly``, ``ClientOnly``) to
@@ -284,7 +270,26 @@ class StateDataModel:
 
         model = MyModel(trame_server=server)
         model.count = 42  # triggers async push to client
+
+    Agents (MCP) see a model class when it declares something: the ``mcp=``
+    class keyword, a field's ``mcp=`` value, or the ``@mcp.method``,
+    ``@mcp.property`` and ``@mcp.constructor`` markers. The keyword takes
+    True (every field by mode: ``Sync`` writable, ``ClientOnly`` read-only,
+    ``ServerOnly`` only when marked; methods only when marked), False
+    (hidden), or a dict of ``description``, ``all_fields``, ``all_methods``,
+    ``properties``, ``methods`` and ``constructor``.
     """
+
+    _mcp_api_packages = ("trame_dataclass",)
+
+    def __init_subclass__(cls, mcp=None, **kwargs):
+        label = f"{cls.__name__}(mcp=...)"
+        common, own = _model_declaration(label, mcp)
+        _check_model_markers(cls)
+        _check_server_only(cls, common, label)
+        super().__init_subclass__(mcp=common, **kwargs)
+        if own is not None:
+            setattr(cls, _MODEL_KEYWORD_ATTR, own)
 
     def __init__(self, trame_server=None, enable_collaboration=False, **kwargs):
         """Initialize the model, apply defaults, and register with the server if provided.
@@ -350,6 +355,47 @@ class StateDataModel:
         returns the class-level ``TEMPLATE`` attribute, or an empty string.
         """
         return getattr(cls, "TEMPLATE", "")
+
+    @classmethod
+    def mcp_describe(cls, declare=None, /, **options):
+        """Set what agents see of this model class, when it comes from another
+        library, with the options of the ``mcp=`` class keyword, or False to hide
+        it. The settings apply to the whole process and to subclasses, and only
+        one call per class may change them.
+
+        Every call returns the class's effective options as plain data;
+        ``server.mcp.describe(cls)`` shows what agents see.
+        """
+        if declare is not None and options:
+            msg = "mcp_describe() takes True, False or options, not both"
+            raise TypeError(msg)
+        value = declare if declare is not None else (options or None)
+        label = f"{cls.__name__}.mcp_describe()"
+        common, own = _model_declaration(label, value)
+        _check_server_only(cls, common, label)
+        if isinstance(common, dict):
+            result = super().mcp_describe(**common)
+        else:
+            result = super().mcp_describe(common)
+        if own is not None:
+            setattr(cls, _MODEL_DESCRIBED_ATTR, own)
+            mcp_options.changed()
+        return {**result, **mcp_model_options(cls)}
+
+    # What agents (MCP) see of fields (MCPExposable's hooks)
+
+    @classmethod
+    def _mcp_field_names(cls):
+        return tuple(getattr(cls, "FIELD_NAMES", ()))
+
+    @classmethod
+    def _mcp_fields(cls):
+        from trame_dataclass import mcp  # noqa: PLC0415 (it imports this module)
+
+        return mcp.fields(cls)
+
+    async def _mcp_settle(self):
+        await self.completion()
 
     def _register_server(self, **_):
         self.server.protocol_call("trame.dataclass.register", self)
@@ -572,6 +618,120 @@ class StateDataModel:
 
 
 # -----------------------------------------------------------------------------
+# Agents (MCP)
+# -----------------------------------------------------------------------------
+MCP_FIELD_OPTIONS = ("description", "read_only", "schema")
+
+
+def _field_mcp_option(value, needs_read_only):
+    """A field's ``mcp=`` value as None, False or a dict of options."""
+    if value is None or value is False:
+        return value
+    if value is True:
+        value = {}
+    elif isinstance(value, str):
+        value = {"description": value}
+    elif isinstance(value, dict):
+        unknown = sorted(set(value) - set(MCP_FIELD_OPTIONS))
+        if unknown:
+            msg = f"mcp: unknown options {unknown}, allowed: {list(MCP_FIELD_OPTIONS)}"
+            raise ValueError(msg)
+        value = dict(value)
+        if "read_only" in value and not isinstance(value["read_only"], bool):
+            msg = "mcp: read_only must be True or False"
+            raise TypeError(msg)
+        if "schema" in value and not isinstance(value["schema"], dict):
+            msg = "mcp: schema must be a dict of JSON Schema keywords"
+            raise TypeError(msg)
+    else:
+        msg = f"mcp must be True, False, a description or a dict, got {value!r}"
+        raise TypeError(msg)
+    if needs_read_only and "read_only" not in value:
+        msg = (
+            "A ServerOnly field exposed to agents must state read_only=True or "
+            "False: mcp={'read_only': ...}"
+        )
+        raise ValueError(msg)
+    return value
+
+
+def _check_server_only(cls, value, label):
+    """A ServerOnly field listed in ``properties`` must state read_only."""
+    layer = mcp_options.normalize_options(value, label)
+    if not isinstance(layer, dict):
+        return
+    server_only = getattr(cls, "FIELD_NAMES", set()) - getattr(
+        cls, "CLIENT_NAMES", set()
+    )
+    for name, options in layer.get("properties", {}).items():
+        if name in server_only and options is not False and "read_only" not in options:
+            msg = (
+                f"{cls.__name__}.{name} is a ServerOnly field: listing it requires "
+                f"read_only=True or False"
+            )
+            raise ValueError(msg)
+
+
+# What a model class declares besides the options every class has
+MCP_MODEL_OPTIONS = ("all_fields",)
+_MODEL_KEYWORD_ATTR = "_trame_mcp_model_keyword"
+_MODEL_DESCRIBED_ATTR = "_trame_mcp_model_described"
+
+
+def _model_declaration(label, value):
+    """``value``, a model class's ``mcp=`` keyword or ``mcp_describe()``
+    declaration, as ``(common, own)``: the part trame-common handles, and
+    the model's own options (``all_fields``) or None."""
+    if value is None or value is False:
+        return value, None
+    if value is True:  # every field, by mode
+        return True, {"all_fields": True}
+    allowed = (*mcp_options.CLASS_OPTIONS, *MCP_MODEL_OPTIONS)
+    if not isinstance(value, dict):
+        msg = f"{label} must be True, False or a dict of {list(allowed)}, got {value!r}"
+        raise TypeError(msg)
+    unknown = sorted(set(value) - set(allowed))
+    if unknown:
+        msg = f"{label}: unknown options {unknown}, allowed: {list(allowed)}"
+        raise ValueError(msg)
+    own = {}
+    if value.get("all_fields") is not None:
+        if not isinstance(value["all_fields"], bool):
+            msg = f"{label}: all_fields must be True or False"
+            raise TypeError(msg)
+        own["all_fields"] = value["all_fields"]
+    common = {k: v for k, v in value.items() if k not in MCP_MODEL_OPTIONS}
+    # Options of its own still declare the class
+    return (common if common or not own else True), (own or None)
+
+
+def _check_model_markers(cls):
+    """Reject first-class tools on a model: they are for components built
+    once."""
+    for name, _, _ in mcp_options.first_class_members(cls):
+        msg = (
+            f"{cls.__name__}.{name}: @mcp.tool, @mcp.resource and @mcp.prompt "
+            f"are for components built once; a model's methods use @mcp.method"
+        )
+        raise TypeError(msg)
+
+
+def mcp_model_options(cls):
+    """
+    The model's own options, combined like the options every class has:
+    ``all_fields``, from the base classes down, looking on each class at its
+    keyword, then its ``mcp_describe()``.
+    """
+    all_fields = False
+    for klass in reversed(cls.__mro__):
+        own = vars(klass)
+        for layer in (own.get(_MODEL_KEYWORD_ATTR), own.get(_MODEL_DESCRIBED_ATTR)):
+            if layer is not None and "all_fields" in layer:
+                all_fields = layer["all_fields"]
+    return {"all_fields": all_fields}
+
+
+# -----------------------------------------------------------------------------
 # Generic encoder/decoder
 # -----------------------------------------------------------------------------
 
@@ -680,7 +840,15 @@ class ServerOnly:
             or a container of them; automatically sets up the appropriate encoder/decoder.
         client_deep_reactive: reserved for subclass ``Sync`` — ignored here.
         type_checking: how type mismatches are reported (default: ``WARNING``).
+        mcp: what agents see of the field. None follows the class, True/False
+            expose/hide it, a string exposes it with that description, and a
+            dict of ``description``, ``read_only`` and ``schema`` (JSON Schema
+            keywords enforced on every agent write) sets options. Agents may
+            write a ``Sync`` field and only read a ``ClientOnly`` one; a
+            ``ServerOnly`` field must state ``read_only``.
     """
+
+    _MCP_NEEDS_READ_ONLY = True  # a ServerOnly field has no access to default to
 
     def __init__(
         self,
@@ -690,7 +858,9 @@ class ServerOnly:
         has_dataclass: bool = False,
         client_deep_reactive: bool = False,
         type_checking: TypeValidation = TypeValidation.WARNING,
+        mcp=None,
     ):
+        self._mcp = _field_mcp_option(mcp, self._MCP_NEEDS_READ_ONLY)
         self._type_checker = TypeChecker(_type, type_checking)
         self._client_deep_reactive = client_deep_reactive
         self._default = default
@@ -747,6 +917,8 @@ class Sync(ServerOnly):
     template needs to observe at a property level (e.g. a reactive list of objects).
     """
 
+    _MCP_NEEDS_READ_ONLY = False
+
     def __set_name__(self, owner, name):
         _setup_class_fields(owner)
 
@@ -777,6 +949,8 @@ class ClientOnly(ServerOnly):
 
     Inherits all constructor parameters from :class:`ServerOnly`.
     """
+
+    _MCP_NEEDS_READ_ONLY = False
 
     def __set_name__(self, owner, name):
         _setup_class_fields(owner)
